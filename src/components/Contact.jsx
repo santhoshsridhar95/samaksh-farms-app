@@ -1,9 +1,8 @@
-import { FaPhone, FaMapMarkerAlt } from "react-icons/fa";
+import { FaWhatsapp, FaPhone, FaMapMarkerAlt } from "react-icons/fa";
 
 export default function Contact() {
   return (
-    <section className="section container fade-in" style={{ textAlign: "center" }}>
-      
+    <section className="section container" style={{ textAlign: "center" }}>
       <h2>Contact Us</h2>
 
       <p>
@@ -14,10 +13,21 @@ export default function Contact() {
         <FaMapMarkerAlt /> Bengaluru
       </p>
 
-      <a href="https://wa.me/919738451955" className="btn">
-        Order on WhatsApp
+      {/* WhatsApp CTA */}
+      <a
+        href="https://wa.me/919738451955?text=Hi%20I%20want%20to%20order%20mushrooms"
+        target="_blank"
+        rel="noreferrer"
+        className="btn"
+        style={{
+          marginTop: "15px",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "8px"
+        }}
+      >
+        <FaWhatsapp /> Chat on WhatsApp
       </a>
-
     </section>
   );
 }

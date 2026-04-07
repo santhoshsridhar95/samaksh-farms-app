@@ -1,28 +1,71 @@
-export default function Hero() {
+const products = [
+  {
+    name: "Button Mushrooms",
+    desc: "Fresh, firm, ideal for everyday cooking",
+    price: "₹200/kg",
+    img: "/button.jpg"
+  },
+  {
+    name: "Oyster Mushrooms",
+    desc: "Soft texture, rich flavor, highly nutritious",
+    price: "₹250/kg",
+    img: "/oyster.jpg"
+  }
+];
+
+export default function Products() {
   return (
     <section
-      className="section container fade-in"
-      style={{
-        backgroundImage: "url('/hero.jpg')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        padding: "120px 20px",
-        textAlign: "center"
-      }}
+        className="section container"
+        style={{
+            paddingTop: "20px",   // 👈 VERY IMPORTANT
+            marginTop: "0px"
+        }}
     >
-      <div className="container">
-        <h1 style={{ fontSize: "48px" }}>
-          Fresh Mushrooms in Bangalore
-        </h1>
 
-        <p style={{ marginTop: "10px", opacity: 0.7 }}>
-          From Samaksh Farms 🌱 Delivered fresh within 24 hours
-        </p>
+      {/* 🔥 BETTER HEADING */}
+      <h2>Available Fresh Mushrooms</h2>
 
-        <a className="btn" style={{ marginTop: "15px" }}>
-          Order Now
-        </a>
+      <p style={{
+        marginTop: "8px",
+        opacity: 0.7,
+        maxWidth: "500px"
+      }}>
+        Choose from our freshly harvested mushrooms grown at Samaksh Farms.
+      </p>
+
+      <div className="grid grid-2" style={{ marginTop: "35px" }}>
+        {products.map((p, i) => (
+          <div key={i} className="card">
+
+            {/* 🖼 IMAGE WITH FALLBACK */}
+            <img
+              src={p.img}
+              alt={p.name}
+              className="product-img"
+              onError={(e) => {
+                e.target.src = "/fallback.jpg";
+              }}
+            />
+
+            <h3 style={{ marginTop: "12px" }}>{p.name}</h3>
+
+            <p style={{ opacity: 0.6 }}>{p.desc}</p>
+
+            <div style={{
+              marginTop: "12px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}>
+              <b>{p.price}</b>
+              <button className="btn">Order</button>
+            </div>
+
+          </div>
+        ))}
       </div>
+
     </section>
   );
 }

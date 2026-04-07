@@ -1,6 +1,6 @@
 export default function Footer() {
   return (
-    <footer style={{ padding: "20px", textAlign: "center", opacity: 0.6 }}>
+    <footer style={{ textAlign: "center", padding: "20px" }}>
       © 2026 Samaksh Farms
     </footer>
   );

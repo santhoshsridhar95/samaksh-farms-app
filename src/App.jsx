@@ -1,24 +1,32 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import Products from "./components/Products";
 import About from "./components/About";
 import Contact from "./components/Contact";
 import Footer from "./components/Footer";
-import useScrollReveal from "./hooks/useScrollReveal";
+import WhatsAppButton from "./components/WhatsAppButton";
+import OrderForm from "./components/OrderForm";
+import Reviews from "./components/Reviews";
 
 export default function App() {
-  useScrollReveal();
   const [dark, setDark] = useState(false);
 
+  useEffect(() => {
+    document.documentElement.className = dark ? "dark" : "";
+  }, [dark]);
+
   return (
-    <div className={dark ? "dark" : ""}>
+    <>
       <Navbar toggleTheme={() => setDark(!dark)} />
       <Hero />
       <Products />
+      <Reviews />
+      <OrderForm />
       <About />
       <Contact />
       <Footer />
-    </div>
+      <WhatsAppButton />
+    </>
   );
 }
