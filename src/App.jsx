@@ -22,7 +22,7 @@ export default function App() {
       <Hero />
       <Products />
       <Reviews />
-      <OrderForm />
+      {/* <OrderForm /> */}
       <About />
       <Contact />
       <Footer />
