@@ -1,71 +1,172 @@
+import { useState } from "react";
+
 const products = [
   {
+    id: 1,
     name: "Button Mushrooms",
     desc: "Fresh, firm, ideal for everyday cooking",
-    price: "₹200/kg",
-    img: "/button.jpg"
+    price: 200,
+    unit: "kg",
+    img: "/button.jpg",
   },
   {
+    id: 2,
     name: "Oyster Mushrooms",
     desc: "Soft texture, rich flavor, highly nutritious",
-    price: "₹250/kg",
-    img: "/oyster.jpg"
-  }
+    price: 220,
+    unit: "kg",
+    img: "/oyster.jpg",
+  },
+  {
+    id: 3,
+    name: "Oyster Mushroom Box (200gm)",
+    desc: "Fresh packed mushrooms ready for daily use",
+    price: 70,
+    unit: "box",
+    img: "/oyster-box.jpg",
+  },
 ];
 
 export default function Products() {
+  const [quantities, setQuantities] = useState({});
+
+  const increaseQty = (id) => {
+    setQuantities((prev) => ({
+      ...prev,
+      [id]: (prev[id] || 1) + 1,
+    }));
+  };
+
+  const decreaseQty = (id) => {
+    setQuantities((prev) => ({
+      ...prev,
+      [id]: Math.max(1, (prev[id] || 1) - 1),
+    }));
+  };
+
+  const orderOnWhatsApp = (product) => {
+    const qty = quantities[product.id] || 1;
+
+    const total = qty * product.price;
+
+    const message = `
+Hi Samaksh Farms,
+
+I would like to place an order.
+
+🍄 Product: ${product.name}
+📦 Quantity: ${qty} ${product.unit}
+💰 Estimated Amount: ₹${total}
+
+Please share me the Payment details.
+
+Thank you.
+`;
+
+    const encodedMessage = encodeURIComponent(message);
+
+    window.open(
+      `https://api.whatsapp.com/send?phone=919738451955&text=${encodedMessage}`,
+      "_blank"
+    );
+  };
+
   return (
     <section
-        className="section container"
-        style={{
-            paddingTop: "20px",   // 👈 VERY IMPORTANT
-            marginTop: "0px"
-        }}
+      className="section container"
+      style={{
+        paddingTop: "10px",
+      }}
     >
+      <div
+        style={{
+          textAlign: "center",
+          marginBottom: "40px",
+        }}
+      >
+        <h2>Choose Your Fresh Mushrooms</h2>
 
-      {/* 🔥 BETTER HEADING */}
-      <h2>Available Fresh Mushrooms</h2>
-
-      <p style={{
-        marginTop: "8px",
-        opacity: 0.7,
-        maxWidth: "500px"
-      }}>
-        Choose from our freshly harvested mushrooms grown at Samaksh Farms.
-      </p>
-
-      <div className="grid grid-2" style={{ marginTop: "35px" }}>
-        {products.map((p, i) => (
-          <div key={i} className="card">
-
-            {/* 🖼 IMAGE WITH FALLBACK */}
-            <img
-              src={p.img}
-              alt={p.name}
-              className="product-img"
-              onError={(e) => {
-                e.target.src = "/fallback.jpg";
-              }}
-            />
-
-            <h3 style={{ marginTop: "12px" }}>{p.name}</h3>
-
-            <p style={{ opacity: 0.6 }}>{p.desc}</p>
-
-            <div style={{
-              marginTop: "12px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center"
-            }}>
-              <b>{p.price}</b>
-              <button className="btn">Order</button>
-            </div>
-
-          </div>
-        ))}
+        <p
+          style={{
+            opacity: 0.7,
+            maxWidth: "600px",
+            margin: "10px auto",
+          }}
+        >
+          Freshly harvested and delivered across Bangalore.
+          Select quantity and order directly on WhatsApp.
+        </p>
       </div>
 
+      <div className="products-grid">
+        {products.map((product) => {
+          const qty = quantities[product.id] || 1;
+
+          return (
+            <div key={product.id} className="card product-card">
+              <img
+                src={product.img}
+                alt={product.name}
+                className="product-img"
+                onError={(e) => {
+                  e.target.src = "/fallback.jpg";
+                }}
+              />
+
+              <div className="product-content">
+                <h3>{product.name}</h3>
+
+                <p className="product-desc">
+                  {product.desc}
+                </p>
+
+                <div className="product-price">
+                  ₹{product.price}
+                  {product.unit === "kg" ? "/kg" : ""}
+                </div>
+
+                <div className="qty-wrapper">
+                  <button
+                    className="qty-btn"
+                    onClick={() => decreaseQty(product.id)}
+                  >
+                    -
+                  </button>
+
+                  <span className="qty-value">
+                    {qty}
+                  </span>
+
+                  <button
+                    className="qty-btn"
+                    onClick={() => increaseQty(product.id)}
+                  >
+                    +
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    textAlign: "center",
+                    marginTop: "10px",
+                    opacity: "0.8",
+                    fontWeight: "600",
+                  }}
+                >
+                  Total: ₹{qty * product.price}
+                </div>
+
+                <button
+                  className="btn whatsapp-order-btn"
+                  onClick={() => orderOnWhatsApp(product)}
+                >
+                  Order on WhatsApp
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

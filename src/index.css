@@ -203,3 +203,502 @@ input {
 .whatsapp-float:hover {
   transform: scale(1.1);
 }
+
+/* PRODUCTS GRID */
+
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 28px;
+}
+
+/* CARD */
+
+.product-card {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* IMAGE */
+
+.product-img {
+  width: 100%;
+  height: 250px;
+  object-fit: cover;
+}
+
+/* CONTENT */
+
+.product-content {
+  padding-top: 15px;
+}
+
+.product-desc {
+  opacity: 0.7;
+  min-height: 48px;
+}
+
+.product-price {
+  font-size: 20px;
+  font-weight: 700;
+  margin-top: 12px;
+  color: var(--primary);
+}
+
+/* QUANTITY */
+
+.qty-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+
+  margin-top: 20px;
+}
+
+.qty-btn {
+  width: 36px;
+  height: 36px;
+
+  border: none;
+  border-radius: 8px;
+
+  cursor: pointer;
+
+  font-size: 18px;
+  font-weight: bold;
+
+  background: rgba(0,0,0,0.08);
+}
+
+.qty-value {
+  min-width: 30px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* ORDER BUTTON */
+
+.whatsapp-order-btn {
+  width: 100%;
+  margin-top: 20px;
+}
+
+/* REVIEW CAROUSEL */
+
+.reviews-carousel {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.reviews-grid-slider {
+  flex: 1;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.review-card {
+  background: var(--card);
+
+  border-radius: 18px;
+
+  padding: 22px;
+
+  min-height: 260px;
+
+  box-shadow:
+    0 8px 20px rgba(0,0,0,0.05),
+    0 20px 40px rgba(0,0,0,0.06);
+
+  transition: transform 0.4s ease;
+}
+
+.review-card:hover {
+  transform: translateY(-5px);
+}
+
+.review-text {
+  line-height: 1.7;
+  margin-top: 10px;
+  opacity: 0.85;
+}
+
+.review-footer {
+  margin-top: 20px;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.review-footer span {
+  opacity: 0.6;
+  font-size: 14px;
+}
+
+/* GOLD STARS */
+
+.stars {
+  color: #fbbf24;
+  font-size: 18px;
+}
+
+.rating {
+  color: var(--text);
+  font-size: 14px;
+}
+
+/* ARROWS */
+
+.review-arrow {
+  width: 45px;
+  height: 45px;
+
+  border-radius: 50%;
+
+  border: none;
+
+  cursor: pointer;
+
+  font-size: 20px;
+
+  background: var(--card);
+
+  box-shadow:
+    0 8px 20px rgba(0,0,0,0.08);
+}
+
+/* TABLET */
+
+@media (max-width: 1024px) {
+  .reviews-grid-slider {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* MOBILE */
+
+@media (max-width: 768px) {
+  .reviews-grid-slider {
+    grid-template-columns: 1fr;
+  }
+
+  .review-arrow {
+    display: none;
+  }
+}
+
+/* ================================= */
+/* ABOUT SECTION */
+/* ================================= */
+
+.about-section {
+  padding-top: 40px;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 70px;
+  align-items: center;
+}
+
+/* LEFT */
+
+.about-label {
+  color: var(--primary);
+
+  font-size: 13px;
+
+  font-weight: 700;
+
+  letter-spacing: 4px;
+
+  margin-bottom: 18px;
+
+  display: inline-block;
+}
+
+.about-title {
+  font-size: 42px;
+
+  line-height: 1.25;
+
+  max-width: 700px;
+
+  margin-bottom: 24px;
+}
+
+.about-text {
+  font-size: 17px;
+
+  line-height: 1.9;
+
+  opacity: 0.75;
+
+  max-width: 700px;
+
+  margin-bottom: 18px;
+}
+
+.about-tags {
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap: 12px;
+
+  margin-top: 25px;
+}
+
+.about-tags span {
+  background: rgba(107, 142, 35, 0.12);
+
+  color: var(--primary);
+
+  padding: 10px 18px;
+
+  border-radius: 999px;
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+  transition: all 0.3s ease;
+}
+
+.about-tags span:hover {
+  transform: translateY(-3px);
+}
+
+/* RIGHT SIDE */
+
+.about-right {
+  display: grid;
+
+  grid-template-columns: repeat(2, 1fr);
+
+  gap: 18px;
+}
+
+.trust-card {
+  background: var(--card);
+
+  border-radius: 22px;
+
+  padding: 28px;
+
+  border: 1px solid rgba(0,0,0,0.05);
+
+  box-shadow:
+    0 12px 30px rgba(0,0,0,0.04);
+
+  transition: all 0.35s ease;
+
+  opacity: 0;
+
+  animation: cardReveal 0.7s ease forwards;
+}
+
+.card-1 {
+  animation-delay: 0.1s;
+}
+
+.card-2 {
+  animation-delay: 0.2s;
+}
+
+.card-3 {
+  animation-delay: 0.3s;
+}
+
+.card-4 {
+  animation-delay: 0.4s;
+}
+
+.trust-card:hover {
+  transform: translateY(-8px);
+
+  box-shadow:
+    0 20px 40px rgba(0,0,0,0.08);
+}
+
+.trust-card h3 {
+  color: var(--primary);
+
+  font-size: 34px;
+
+  margin-bottom: 10px;
+}
+
+.trust-card p {
+  opacity: 0.75;
+
+  line-height: 1.6;
+}
+
+/* BRAND MESSAGE */
+
+.about-brand {
+  margin-top: 70px;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 30px;
+}
+
+.brand-line {
+  flex: 1;
+
+  height: 1px;
+
+  background: rgba(0,0,0,0.08);
+}
+
+.brand-message {
+  text-align: center;
+
+  min-width: 350px;
+}
+
+.brand-message h3 {
+  font-size: 34px;
+
+  line-height: 1.4;
+
+  margin: 0;
+
+  font-weight: 700;
+}
+
+.brand-message h3:nth-child(2) {
+  color: var(--primary);
+}
+
+/* ANIMATIONS */
+
+.about-left {
+  animation: fadeUp 0.8s ease;
+}
+
+@keyframes fadeUp {
+
+  from {
+    opacity: 0;
+    transform: translateY(25px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cardReveal {
+
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* TABLET */
+
+@media (max-width: 1024px) {
+
+  .about-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .about-title {
+    font-size: 36px;
+  }
+}
+
+/* MOBILE */
+
+@media (max-width: 768px) {
+
+  .about-title {
+    font-size: 30px;
+  }
+
+  .about-right {
+    grid-template-columns: 1fr;
+  }
+
+  .about-brand {
+    flex-direction: column;
+  }
+
+  .brand-line {
+    width: 100%;
+  }
+
+  .brand-message {
+    min-width: auto;
+  }
+
+  .brand-message h3 {
+    font-size: 24px;
+  }
+}
+
+
+/* SOCIAL LINKS */
+
+.social-links {
+  display: flex;
+
+  justify-content: center;
+
+  gap: 16px;
+
+  margin-top: 25px;
+
+  flex-wrap: wrap;
+}
+
+.social-btn {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  text-decoration: none;
+
+  padding: 12px 20px;
+
+  border-radius: 999px;
+
+  font-weight: 600;
+
+  transition: all 0.3s ease;
+}
+
+.social-btn:hover {
+  transform: translateY(-3px);
+}
+
+.instagram {
+  background: rgba(225, 48, 108, 0.12);
+
+  color: #e1306c;
+}
+  
+.youtube {
+  background: rgba(255, 0, 0, 0.12);
+
+  color: #ff0000;
+}
