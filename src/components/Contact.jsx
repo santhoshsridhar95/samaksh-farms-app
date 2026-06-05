@@ -5,6 +5,13 @@ import {
   FaYoutube,
   FaArrowRight,
 } from "react-icons/fa";
+import {
+  FaWhatsapp,
+  FaPhoneAlt,
+  FaInstagram,
+  FaYoutube,
+  FaArrowRight,
+} from "react-icons/fa";
 
 export default function Contact() {
   return (
