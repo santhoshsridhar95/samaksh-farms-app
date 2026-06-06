@@ -861,4 +861,53 @@ input {
   .social-link {
     justify-content: center;
   }
+
+
+@media (max-width: 768px) {
+
+  .contact-card {
+    padding: 40px 24px;
+  }
+
+  .contact-title {
+    font-size: 32px;
+  }
+
+  .contact-subtitle {
+    font-size: 16px;
+  }
+
+  .social-links {
+    flex-direction: column;
+  }
+
+  .social-link {
+    justify-content: center;
+  }
+
+  text-decoration: none;
+
+  padding: 12px 20px;
+
+  border-radius: 999px;
+
+  font-weight: 600;
+
+  transition: all 0.3s ease;
+}
+
+.social-btn:hover {
+  transform: translateY(-3px);
+}
+
+.instagram {
+  background: rgba(225, 48, 108, 0.12);
+
+  color: #e1306c;
+}
+  
+.youtube {
+  background: rgba(255, 0, 0, 0.12);
+
+  color: #ff0000;
 }

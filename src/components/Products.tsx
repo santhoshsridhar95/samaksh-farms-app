@@ -1,6 +1,16 @@
 import { useState } from "react";
+import React from "react";
 
-const products = [
+interface Product {
+  id: number;
+  name: string;
+  desc: string;
+  price: number;
+  unit: string;
+  img: string;
+}
+
+const products: Product[] = [
   {
     id: 1,
     name: "Button Mushrooms",
@@ -27,24 +37,27 @@ const products = [
   },
 ];
 
-export default function Products() {
-  const [quantities, setQuantities] = useState({});
+export default function Products(): JSX.Element {
+  const [quantities, setQuantities] =
+    useState<Record<number, number>>({});
 
-  const increaseQty = (id) => {
+  const increaseQty = (id: number): void => {
     setQuantities((prev) => ({
       ...prev,
       [id]: (prev[id] || 1) + 1,
     }));
   };
 
-  const decreaseQty = (id) => {
+  const decreaseQty = (id: number): void => {
     setQuantities((prev) => ({
       ...prev,
       [id]: Math.max(1, (prev[id] || 1) - 1),
     }));
   };
 
-  const orderOnWhatsApp = (product) => {
+  const orderOnWhatsApp = (
+    product: Product
+  ): void => {
     const qty = quantities[product.id] || 1;
 
     const total = qty * product.price;
@@ -58,12 +71,13 @@ I would like to place an order.
 📦 Quantity: ${qty} ${product.unit}
 💰 Estimated Amount: ₹${total}
 
-Please share me the Payment details.
+Please share payment details.
 
 Thank you.
 `;
 
-    const encodedMessage = encodeURIComponent(message);
+    const encodedMessage =
+      encodeURIComponent(message);
 
     window.open(
       `https://api.whatsapp.com/send?phone=919738451955&text=${encodedMessage}`,
@@ -84,7 +98,9 @@ Thank you.
           marginBottom: "40px",
         }}
       >
-        <h2>Choose Your Fresh Mushrooms</h2>
+        <h2>
+          Choose Your Fresh Mushrooms
+        </h2>
 
         <p
           style={{
@@ -93,23 +109,30 @@ Thank you.
             margin: "10px auto",
           }}
         >
-          Freshly harvested and delivered across Bangalore.
-          Select quantity and order directly on WhatsApp.
+          Freshly harvested and delivered
+          across Bengaluru and Chikkaballapur.
         </p>
       </div>
 
       <div className="products-grid">
         {products.map((product) => {
-          const qty = quantities[product.id] || 1;
+          const qty =
+            quantities[product.id] || 1;
 
           return (
-            <div key={product.id} className="card product-card">
+            <div
+              key={product.id}
+              className="card product-card"
+            >
               <img
                 src={product.img}
                 alt={product.name}
                 className="product-img"
-                onError={(e) => {
-                  e.target.src = "/fallback.jpg";
+                onError={(
+                  e: React.SyntheticEvent<HTMLImageElement>
+                ) => {
+                  e.currentTarget.src =
+                    "/fallback.jpg";
                 }}
               />
 
@@ -122,13 +145,17 @@ Thank you.
 
                 <div className="product-price">
                   ₹{product.price}
-                  {product.unit === "kg" ? "/kg" : ""}
+                  {product.unit === "kg"
+                    ? "/kg"
+                    : ""}
                 </div>
 
                 <div className="qty-wrapper">
                   <button
                     className="qty-btn"
-                    onClick={() => decreaseQty(product.id)}
+                    onClick={() =>
+                      decreaseQty(product.id)
+                    }
                   >
                     -
                   </button>
@@ -139,7 +166,9 @@ Thank you.
 
                   <button
                     className="qty-btn"
-                    onClick={() => increaseQty(product.id)}
+                    onClick={() =>
+                      increaseQty(product.id)
+                    }
                   >
                     +
                   </button>
@@ -149,16 +178,19 @@ Thank you.
                   style={{
                     textAlign: "center",
                     marginTop: "10px",
-                    opacity: "0.8",
-                    fontWeight: "600",
+                    opacity: 0.8,
+                    fontWeight: 600,
                   }}
                 >
-                  Total: ₹{qty * product.price}
+                  Total: ₹
+                  {qty * product.price}
                 </div>
 
                 <button
                   className="btn whatsapp-order-btn"
-                  onClick={() => orderOnWhatsApp(product)}
+                  onClick={() =>
+                    orderOnWhatsApp(product)
+                  }
                 >
                   Order on WhatsApp
                 </button>

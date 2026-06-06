@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import Products from "./components/Products";
@@ -9,8 +10,8 @@ import WhatsAppButton from "./components/WhatsAppButton";
 import OrderForm from "./components/OrderForm";
 import Reviews from "./components/Reviews";
 
-export default function App() {
-  const [dark, setDark] = useState(false);
+export default function App(): JSX.Element {
+  const [dark, setDark] = useState<boolean>(false);
 
   useEffect(() => {
     document.documentElement.className = dark ? "dark" : "";
@@ -19,13 +20,21 @@ export default function App() {
   return (
     <>
       <Navbar toggleTheme={() => setDark(!dark)} />
+
       <Hero />
+
       <Products />
+
       <Reviews />
+
       {/* <OrderForm /> */}
+
       <About />
+
       <Contact />
+
       <Footer />
+
       <WhatsAppButton />
     </>
   );
