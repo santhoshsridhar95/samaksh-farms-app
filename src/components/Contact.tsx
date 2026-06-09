@@ -9,28 +9,24 @@ import {
 export default function Contact() {
   return (
     <section className="container contact-section">
-
       <div className="contact-card">
+        <span className="contact-label">PLACE YOUR ORDER</span>
 
-        <span className="contact-label">
-          PLACE YOUR ORDER
-        </span>
-
-        <h2 className="contact-title">
-          Get Fresh Mushrooms Delivered
-        </h2>
+        <h2 className="contact-title">Get Fresh Mushrooms Delivered</h2>
 
         <p className="contact-subtitle">
           Contact us directly for availability, pricing and delivery.
         </p>
 
         <div className="contact-details">
-
           <div className="contact-detail">
             <FaPhoneAlt />
+            <span>+91 99451 29686</span>
+            <FaPhoneAlt />
             <span>+91 97384 51955</span>
+            <FaPhoneAlt />
+            <span>+91 7892 963973</span>
           </div>
-
         </div>
 
         <a
@@ -45,7 +41,6 @@ export default function Contact() {
         </a>
 
         <div className="social-links">
-
           <a
             href="YOUR_INSTAGRAM_LINK"
             target="_blank"
@@ -75,11 +70,9 @@ export default function Contact() {
             <FaWhatsapp />
             WhatsApp
           </a>
-
         </div>
 
         <div className="contact-badges">
-
           <span>Fresh Daily</span>
 
           <span>Farm Grown</span>
@@ -87,11 +80,8 @@ export default function Contact() {
           <span>24 Hr Delivery</span>
 
           <span>No Middlemen</span>
-
         </div>
-
       </div>
-
     </section>
   );
 }
