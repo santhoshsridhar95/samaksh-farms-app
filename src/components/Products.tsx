@@ -12,8 +12,8 @@ interface Product {
 const products: Product[] = [
   {
     id: 1,
-    name: "Button Mushrooms (Subject to availability)",
-    desc: "Fresh, firm, ideal for everyday cooking",
+    name: "Button Mushrooms ",
+    desc: "Fresh, firm, ideal for everyday cooking.  (Subject to availability)",
     price: 199,
     unit: "kg",
     img: "/button.jpg",
