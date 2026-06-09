@@ -2,7 +2,14 @@ import { useEffect, useState } from "react";
 import { IndianRupee, Receipt, Save, WalletCards } from "lucide-react";
 
 import AdminLayout from "../components/AdminLayout";
-import { EmptyState, Field, PageHeader, Panel, StatCard, StatusPill } from "../components/AdminUI";
+import {
+  EmptyState,
+  Field,
+  PageHeader,
+  Panel,
+  StatCard,
+  StatusPill,
+} from "../components/AdminUI";
 import api from "../services/api";
 
 export default function SalesPage() {
@@ -26,9 +33,11 @@ export default function SalesPage() {
       const productResponse = await api.get("/api/products");
       const salesResponse = await api.get("/api/sales");
 
-      setCustomers(customerResponse.data.data);
+      setCustomers(customerResponse?.data?.data?.content || []);
+
       setProducts(productResponse.data.data);
-      setSales(salesResponse.data.data);
+
+      setSales(salesResponse?.data?.data?.content || []);
     } catch (error) {
       console.error(error);
     }
@@ -36,17 +45,14 @@ export default function SalesPage() {
 
   const createSale = async () => {
     try {
-      await api.post(
-        "/api/sales",
-        {
-          customerId: Number(customerId),
-          productId: Number(productId),
-          quantity: Number(quantity),
-          unitPrice: Number(unitPrice),
-          paymentStatus,
-          remarks
-        }
-      );
+      await api.post("/api/sales", {
+        customerId: Number(customerId),
+        productId: Number(productId),
+        quantity: Number(quantity),
+        unitPrice: Number(unitPrice),
+        paymentStatus,
+        remarks,
+      });
 
       alert("Sale created successfully");
 
@@ -64,13 +70,17 @@ export default function SalesPage() {
     }
   };
 
-  const totalRevenue = sales.reduce(
+  const totalRevenue = (sales || []).reduce(
     (total, sale) => total + (Number(sale.totalAmount) || 0),
-    0
+    0,
   );
 
-  const paidSales = sales.filter((sale) => sale.paymentStatus === "PAID").length;
-  const pendingSales = sales.filter((sale) => sale.paymentStatus !== "PAID").length;
+  const paidSales = (sales || []).filter(
+    (sale) => sale.paymentStatus === "PAID",
+  ).length;
+  const pendingSales = (sales || []).filter(
+    (sale) => sale.paymentStatus !== "PAID",
+  ).length;
 
   return (
     <AdminLayout>
@@ -118,7 +128,7 @@ export default function SalesPage() {
               onChange={(event) => setCustomerId(event.target.value)}
             >
               <option value="">Select Customer</option>
-              {customers.map((customer) => (
+              {(customers || []).map((customer) => (
                 <option key={customer.id} value={customer.id}>
                   {customer.customerName}
                 </option>
@@ -132,7 +142,7 @@ export default function SalesPage() {
               onChange={(event) => setProductId(event.target.value)}
             >
               <option value="">Select Product</option>
-              {products.map((product) => (
+              {(products || []).map((product) => (
                 <option key={product.id} value={product.id}>
                   {product.productName}
                 </option>
@@ -194,7 +204,7 @@ export default function SalesPage() {
 
         {sales.length > 0 && (
           <div className="admin-record-grid">
-            {sales.map((sale) => (
+            {(sales || []).map((sale) => (
               <article className="admin-record-card" key={sale.id}>
                 <header>
                   <div>

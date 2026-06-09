@@ -2,7 +2,14 @@ import { useEffect, useState } from "react";
 import { CalendarDays, ClipboardList, Save, ShoppingBag } from "lucide-react";
 
 import AdminLayout from "../components/AdminLayout";
-import { EmptyState, Field, PageHeader, Panel, StatCard, StatusPill } from "../components/AdminUI";
+import {
+  EmptyState,
+  Field,
+  PageHeader,
+  Panel,
+  StatCard,
+  StatusPill,
+} from "../components/AdminUI";
 import api from "../services/api";
 
 export default function OrderPage() {
@@ -23,30 +30,41 @@ export default function OrderPage() {
   const loadData = async () => {
     try {
       const customerResponse = await api.get("/api/customers");
+
       const productResponse = await api.get("/api/products");
+
       const orderResponse = await api.get("/api/orders");
 
-      setCustomers(customerResponse.data.data);
+      console.log("CUSTOMERS", customerResponse.data);
+
+      console.log("PRODUCTS", productResponse.data);
+
+      console.log("ORDERS", orderResponse.data);
+
+      setCustomers(customerResponse?.data?.data?.content || []);
+
       setProducts(productResponse.data.data);
-      setOrders(orderResponse.data.data);
+
+      setOrders(orderResponse?.data?.data?.content || []);
     } catch (error) {
       console.error(error);
+
+      setCustomers([]);
+      setProducts([]);
+      setOrders([]);
     }
   };
 
   const createOrder = async () => {
     try {
-      await api.post(
-        "/api/orders",
-        {
-          customerId: Number(customerId),
-          productId: Number(productId),
-          quantity: Number(quantity),
-          expectedUnitPrice: Number(expectedUnitPrice),
-          expectedDeliveryDate,
-          remarks
-        }
-      );
+      await api.post("/api/orders", {
+        customerId: Number(customerId),
+        productId: Number(productId),
+        quantity: Number(quantity),
+        expectedUnitPrice: Number(expectedUnitPrice),
+        expectedDeliveryDate,
+        remarks,
+      });
 
       alert("Order created successfully");
 
@@ -64,14 +82,17 @@ export default function OrderPage() {
     }
   };
 
-  const expectedAmount = orders.reduce(
-    (total, order) => total + (Number(order.expectedAmount) || 0),
-    0
-  );
-
-  const pendingOrders = orders.filter(
-    (order) => String(order.status).toLowerCase().includes("pending")
-  ).length;
+  const expectedAmount = Array.isArray(orders)
+    ? orders.reduce(
+        (total, order) => total + (Number(order.expectedAmount) || 0),
+        0,
+      )
+    : 0;
+  const pendingOrders = Array.isArray(orders)
+    ? orders.filter((order) =>
+        String(order.status).toLowerCase().includes("pending"),
+      ).length
+    : 0;
 
   return (
     <AdminLayout>
@@ -113,7 +134,7 @@ export default function OrderPage() {
               onChange={(event) => setCustomerId(event.target.value)}
             >
               <option value="">Select Customer</option>
-              {customers.map((customer) => (
+              {(customers || []).map((customer) => (
                 <option key={customer.id} value={customer.id}>
                   {customer.customerName}
                 </option>
@@ -127,7 +148,7 @@ export default function OrderPage() {
               onChange={(event) => setProductId(event.target.value)}
             >
               <option value="">Select Product</option>
-              {products.map((product) => (
+              {(products || []).map((product) => (
                 <option key={product.id} value={product.id}>
                   {product.productName}
                 </option>
@@ -186,7 +207,7 @@ export default function OrderPage() {
 
         {orders.length > 0 && (
           <div className="admin-record-grid">
-            {orders.map((order) => (
+            {(orders || []).map((order) => (
               <article className="admin-record-card" key={order.id}>
                 <header>
                   <div>
