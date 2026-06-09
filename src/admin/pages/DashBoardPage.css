@@ -1,0 +1,9 @@
+.admin-alert-ok {
+    background: green !important;
+    border: 5px solid green !important;
+}
+
+.admin-alert-danger {
+    background: red !important;
+    border: 5px solid red !important;
+}
