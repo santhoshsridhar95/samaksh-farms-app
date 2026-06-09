@@ -1,9 +1,11 @@
 .admin-alert-ok {
-    background: green !important;
-    border: 5px solid green !important;
+    background: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    border-left: 4px solid #22c55e !important;
 }
 
 .admin-alert-danger {
-    background: red !important;
-    border: 5px solid red !important;
+    background: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    border-left: 4px solid #ef4444 !important;
 }
