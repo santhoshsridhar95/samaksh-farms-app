@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 
 export default function OrderForm() {
   const [form, setForm] = useState({
@@ -7,8 +7,8 @@ export default function OrderForm() {
     quantity: "",
   });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
     const message = `New Order:%0AName: ${form.name}%0APhone: ${form.phone}%0AQuantity: ${form.quantity}`;
 

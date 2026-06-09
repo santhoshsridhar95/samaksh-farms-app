@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 
 interface NavbarProps {
   toggleTheme: () => void;
@@ -6,7 +6,7 @@ interface NavbarProps {
 
 export default function Navbar({
   toggleTheme,
-}: NavbarProps): JSX.Element {
+}: NavbarProps): ReactElement {
   const [dark, setDark] = useState<boolean>(false);
 
   useEffect(() => {
@@ -24,7 +24,6 @@ export default function Navbar({
   return (
     <nav className="navbar">
       <div className="container nav-content">
-
         <div
           style={{
             display: "flex",
@@ -51,18 +50,22 @@ export default function Navbar({
               letterSpacing: "1px",
             }}
           >
-            FRESH • LOCAL • FARM GROWN
+            FRESH | LOCAL | FARM GROWN
           </span>
         </div>
 
         <div className="nav-actions">
-
-          <div
+          <button
+            type="button"
             style={{
               display: "flex",
               alignItems: "center",
               gap: "8px",
               cursor: "pointer",
+              background: "transparent",
+              border: 0,
+              color: "inherit",
+              padding: 0,
             }}
             onClick={handleToggle}
           >
@@ -72,7 +75,7 @@ export default function Navbar({
                   dark ? "dark" : ""
                 }`}
               >
-                {dark ? "🌙" : "☀️"}
+                {dark ? "D" : "L"}
               </div>
             </div>
 
@@ -84,12 +87,11 @@ export default function Navbar({
             >
               {dark ? "Dark" : "Light"}
             </span>
-          </div>
-
-          <button className="btn">
-            Order
           </button>
 
+          <button className="btn" type="button">
+            Order
+          </button>
         </div>
       </div>
     </nav>

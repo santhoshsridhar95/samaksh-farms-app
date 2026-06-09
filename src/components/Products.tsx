@@ -1,5 +1,4 @@
-import { useState } from "react";
-import React from "react";
+import { useState, type ReactElement, type SyntheticEvent } from "react";
 
 interface Product {
   id: number;
@@ -37,7 +36,7 @@ const products: Product[] = [
   },
 ];
 
-export default function Products(): JSX.Element {
+export default function Products(): ReactElement {
   const [quantities, setQuantities] =
     useState<Record<number, number>>({});
 
@@ -59,7 +58,6 @@ export default function Products(): JSX.Element {
     product: Product
   ): void => {
     const qty = quantities[product.id] || 1;
-
     const total = qty * product.price;
 
     const message = `
@@ -67,9 +65,9 @@ Hi Samaksh Farms,
 
 I would like to place an order.
 
-🍄 Product: ${product.name}
-📦 Quantity: ${qty} ${product.unit}
-💰 Estimated Amount: ₹${total}
+Product: ${product.name}
+Quantity: ${qty} ${product.unit}
+Estimated Amount: Rs. ${total}
 
 Please share payment details.
 
@@ -129,9 +127,9 @@ Thank you.
                 alt={product.name}
                 className="product-img"
                 onError={(
-                  e: React.SyntheticEvent<HTMLImageElement>
+                  event: SyntheticEvent<HTMLImageElement>
                 ) => {
-                  e.currentTarget.src =
+                  event.currentTarget.src =
                     "/fallback.jpg";
                 }}
               />
@@ -144,7 +142,7 @@ Thank you.
                 </p>
 
                 <div className="product-price">
-                  ₹{product.price}
+                  Rs. {product.price}
                   {product.unit === "kg"
                     ? "/kg"
                     : ""}
@@ -153,6 +151,7 @@ Thank you.
                 <div className="qty-wrapper">
                   <button
                     className="qty-btn"
+                    type="button"
                     onClick={() =>
                       decreaseQty(product.id)
                     }
@@ -166,6 +165,7 @@ Thank you.
 
                   <button
                     className="qty-btn"
+                    type="button"
                     onClick={() =>
                       increaseQty(product.id)
                     }
@@ -182,12 +182,12 @@ Thank you.
                     fontWeight: 600,
                   }}
                 >
-                  Total: ₹
-                  {qty * product.price}
+                  Total: Rs. {qty * product.price}
                 </div>
 
                 <button
                   className="btn whatsapp-order-btn"
+                  type="button"
                   onClick={() =>
                     orderOnWhatsApp(product)
                   }

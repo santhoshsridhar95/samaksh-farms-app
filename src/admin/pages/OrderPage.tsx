@@ -1,451 +1,228 @@
 import { useEffect, useState } from "react";
+import { CalendarDays, ClipboardList, Save, ShoppingBag } from "lucide-react";
 
-import AdminLayout
-  from "../components/AdminLayout";
-
-import api
-  from "../services/api";
+import AdminLayout from "../components/AdminLayout";
+import { EmptyState, Field, PageHeader, Panel, StatCard, StatusPill } from "../components/AdminUI";
+import api from "../services/api";
 
 export default function OrderPage() {
-
-  const [customers, setCustomers] =
-    useState<any[]>([]);
-
-  const [products, setProducts] =
-    useState<any[]>([]);
-
-  const [orders, setOrders] =
-    useState<any[]>([]);
-
-  const [customerId, setCustomerId] =
-    useState("");
-
-  const [productId, setProductId] =
-    useState("");
-
-  const [quantity, setQuantity] =
-    useState("");
-
-  const [expectedUnitPrice,
-    setExpectedUnitPrice] =
-    useState("");
-
-  const [expectedDeliveryDate,
-    setExpectedDeliveryDate] =
-    useState("");
-
-  const [remarks, setRemarks] =
-    useState("");
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [customerId, setCustomerId] = useState("");
+  const [productId, setProductId] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [expectedUnitPrice, setExpectedUnitPrice] = useState("");
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
+  const [remarks, setRemarks] = useState("");
 
   useEffect(() => {
-
     loadData();
-
   }, []);
 
-  const loadData =
-    async () => {
+  const loadData = async () => {
+    try {
+      const customerResponse = await api.get("/api/customers");
+      const productResponse = await api.get("/api/products");
+      const orderResponse = await api.get("/api/orders");
 
-      try {
+      setCustomers(customerResponse.data.data);
+      setProducts(productResponse.data.data);
+      setOrders(orderResponse.data.data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
-        const customerResponse =
-          await api.get(
-            "/api/customers"
-          );
+  const createOrder = async () => {
+    try {
+      await api.post(
+        "/api/orders",
+        {
+          customerId: Number(customerId),
+          productId: Number(productId),
+          quantity: Number(quantity),
+          expectedUnitPrice: Number(expectedUnitPrice),
+          expectedDeliveryDate,
+          remarks
+        }
+      );
 
-        const productResponse =
-          await api.get(
-            "/api/products"
-          );
+      alert("Order created successfully");
 
-        const orderResponse =
-          await api.get(
-            "/api/orders"
-          );
+      setCustomerId("");
+      setProductId("");
+      setQuantity("");
+      setExpectedUnitPrice("");
+      setExpectedDeliveryDate("");
+      setRemarks("");
 
-        setCustomers(
-          customerResponse.data.data
-        );
+      loadData();
+    } catch (error: any) {
+      console.error(error);
+      alert(error?.response?.data?.message || "Failed to create order");
+    }
+  };
 
-        setProducts(
-          productResponse.data.data
-        );
+  const expectedAmount = orders.reduce(
+    (total, order) => total + (Number(order.expectedAmount) || 0),
+    0
+  );
 
-        setOrders(
-          orderResponse.data.data
-        );
-
-      } catch (error) {
-
-        console.error(error);
-
-      }
-    };
-
-  const createOrder =
-    async () => {
-
-      try {
-
-        await api.post(
-          "/api/orders",
-          {
-            customerId:
-              Number(customerId),
-
-            productId:
-              Number(productId),
-
-            quantity:
-              Number(quantity),
-
-            expectedUnitPrice:
-              Number(
-                expectedUnitPrice
-              ),
-
-            expectedDeliveryDate,
-
-            remarks
-          }
-        );
-
-        alert(
-          "Order created successfully"
-        );
-
-        setCustomerId("");
-        setProductId("");
-        setQuantity("");
-        setExpectedUnitPrice("");
-        setExpectedDeliveryDate("");
-        setRemarks("");
-
-        loadData();
-
-      } catch (error: any) {
-
-        console.error(error);
-
-        alert(
-          error?.response?.data?.message
-          || "Failed to create order"
-        );
-      }
-    };
+  const pendingOrders = orders.filter(
+    (order) => String(order.status).toLowerCase().includes("pending")
+  ).length;
 
   return (
-
     <AdminLayout>
+      <PageHeader
+        eyebrow="Orders"
+        title="Customer Orders"
+        subtitle="Create customer commitments and review expected fulfilment at a glance."
+      />
 
-      <h1>
-        Customer Orders
-      </h1>
-
-      <div
-        style={{
-          border: "1px solid #ddd",
-          padding: "20px",
-          borderRadius: "10px",
-          marginBottom: "20px"
-        }}
-      >
-
-        <h3>
-          Create Order
-        </h3>
-
-        <div>
-
-          <label>
-            Customer
-          </label>
-
-          <br />
-
-          <select
-            value={customerId}
-            onChange={(e) =>
-              setCustomerId(
-                e.target.value
-              )
-            }
-          >
-
-            <option value="">
-              Select Customer
-            </option>
-
-            {customers.map(
-              (customer) => (
-
-                <option
-                  key={customer.id}
-                  value={customer.id}
-                >
-                  {
-                    customer.customerName
-                  }
-                </option>
-
-              )
-            )}
-
-          </select>
-
-        </div>
-
-        <br />
-
-        <div>
-
-          <label>
-            Product
-          </label>
-
-          <br />
-
-          <select
-            value={productId}
-            onChange={(e) =>
-              setProductId(
-                e.target.value
-              )
-            }
-          >
-
-            <option value="">
-              Select Product
-            </option>
-
-            {products.map(
-              (product) => (
-
-                <option
-                  key={product.id}
-                  value={product.id}
-                >
-                  {
-                    product.productName
-                  }
-                </option>
-
-              )
-            )}
-
-          </select>
-
-        </div>
-
-        <br />
-
-        <div>
-
-          <label>
-            Quantity
-          </label>
-
-          <br />
-
-          <input
-            type="number"
-            value={quantity}
-            onChange={(e) =>
-              setQuantity(
-                e.target.value
-              )
-            }
-          />
-
-        </div>
-
-        <br />
-
-        <div>
-
-          <label>
-            Expected Unit Price
-          </label>
-
-          <br />
-
-          <input
-            type="number"
-            value={expectedUnitPrice}
-            onChange={(e) =>
-              setExpectedUnitPrice(
-                e.target.value
-              )
-            }
-          />
-
-        </div>
-
-        <br />
-
-        <div>
-
-          <label>
-            Delivery Date
-          </label>
-
-          <br />
-
-          <input
-            type="date"
-            value={
-              expectedDeliveryDate
-            }
-            onChange={(e) =>
-              setExpectedDeliveryDate(
-                e.target.value
-              )
-            }
-          />
-
-        </div>
-
-        <br />
-
-        <div>
-
-          <label>
-            Remarks
-          </label>
-
-          <br />
-
-          <input
-            value={remarks}
-            onChange={(e) =>
-              setRemarks(
-                e.target.value
-              )
-            }
-          />
-
-        </div>
-
-        <br />
-
-        <button
-          onClick={
-            createOrder
-          }
-        >
-          Create Order
-        </button>
-
+      <div className="admin-stat-grid">
+        <StatCard
+          label="Orders"
+          value={orders.length}
+          icon={<ClipboardList size={20} />}
+          tone="blue"
+        />
+        <StatCard
+          label="Expected Value"
+          value={`Rs. ${expectedAmount}`}
+          icon={<ShoppingBag size={20} />}
+          tone="green"
+        />
+        <StatCard
+          label="Pending"
+          value={pendingOrders}
+          icon={<CalendarDays size={20} />}
+          tone="amber"
+        />
       </div>
 
-      <table
-        border={1}
-        cellPadding={10}
-        style={{
-          width: "100%"
-        }}
+      <Panel
+        title="Create Order"
+        subtitle="Log the customer, product, price, quantity, and delivery date."
       >
-
-        <thead>
-
-        <tr>
-
-          <th>
-            Order Code
-          </th>
-
-          <th>
-            Customer
-          </th>
-
-          <th>
-            Product
-          </th>
-
-          <th>
-            Quantity
-          </th>
-
-          <th>
-            Unit Price
-          </th>
-
-          <th>
-            Amount
-          </th>
-
-          <th>
-            Delivery Date
-          </th>
-
-          <th>
-            Status
-          </th>
-
-        </tr>
-
-        </thead>
-
-        <tbody>
-
-        {orders.map(
-          (order) => (
-
-            <tr
-              key={
-                order.id
-              }
+        <div className="admin-form-grid">
+          <Field label="Customer">
+            <select
+              value={customerId}
+              onChange={(event) => setCustomerId(event.target.value)}
             >
+              <option value="">Select Customer</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.customerName}
+                </option>
+              ))}
+            </select>
+          </Field>
 
-              <td>
-                {order.orderCode}
-              </td>
+          <Field label="Product">
+            <select
+              value={productId}
+              onChange={(event) => setProductId(event.target.value)}
+            >
+              <option value="">Select Product</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.productName}
+                </option>
+              ))}
+            </select>
+          </Field>
 
-              <td>
-                {order.customerName}
-              </td>
+          <Field label="Quantity">
+            <input
+              type="number"
+              value={quantity}
+              onChange={(event) => setQuantity(event.target.value)}
+            />
+          </Field>
 
-              <td>
-                {order.productName}
-              </td>
+          <Field label="Expected Unit Price">
+            <input
+              type="number"
+              value={expectedUnitPrice}
+              onChange={(event) => setExpectedUnitPrice(event.target.value)}
+            />
+          </Field>
 
-              <td>
-                {order.quantity}
-              </td>
+          <Field label="Delivery Date">
+            <input
+              type="date"
+              value={expectedDeliveryDate}
+              onChange={(event) => setExpectedDeliveryDate(event.target.value)}
+            />
+          </Field>
 
-              <td>
-                {
-                  order.expectedUnitPrice
-                }
-              </td>
+          <Field label="Remarks">
+            <input
+              value={remarks}
+              onChange={(event) => setRemarks(event.target.value)}
+            />
+          </Field>
 
-              <td>
-                {
-                  order.expectedAmount
-                }
-              </td>
+          <button className="admin-button" type="button" onClick={createOrder}>
+            <Save size={17} />
+            Create Order
+          </button>
+        </div>
+      </Panel>
 
-              <td>
-                {
-                  order.expectedDeliveryDate
-                }
-              </td>
-
-              <td>
-                {
-                  order.status
-                }
-              </td>
-
-            </tr>
-
-          )
+      <Panel
+        title="Order Pipeline"
+        subtitle="Expected delivery and value are grouped per customer order."
+      >
+        {orders.length === 0 && (
+          <EmptyState
+            title="No customer orders yet"
+            message="Create an order above to begin tracking fulfilment."
+          />
         )}
 
-        </tbody>
+        {orders.length > 0 && (
+          <div className="admin-record-grid">
+            {orders.map((order) => (
+              <article className="admin-record-card" key={order.id}>
+                <header>
+                  <div>
+                    <h3>{order.orderCode}</h3>
+                    <small>{order.customerName}</small>
+                  </div>
+                  <StatusPill status={order.status} />
+                </header>
 
-      </table>
-
+                <div className="admin-record-details">
+                  <div>
+                    <span>Product</span>
+                    <strong>{order.productName}</strong>
+                  </div>
+                  <div>
+                    <span>Quantity</span>
+                    <strong>{order.quantity}</strong>
+                  </div>
+                  <div>
+                    <span>Unit Price</span>
+                    <strong>Rs. {order.expectedUnitPrice}</strong>
+                  </div>
+                  <div>
+                    <span>Amount</span>
+                    <strong>Rs. {order.expectedAmount}</strong>
+                  </div>
+                  <div>
+                    <span>Delivery Date</span>
+                    <strong>{order.expectedDeliveryDate || "Not set"}</strong>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </Panel>
     </AdminLayout>
   );
 }
