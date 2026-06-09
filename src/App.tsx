@@ -1,41 +1,81 @@
-import { useEffect, useState } from "react";
+import {
+  BrowserRouter,
+  Routes,
+  Route
+} from "react-router-dom";
 
-import Navbar from "./components/Navbar";
-import Hero from "./components/Hero";
-import Products from "./components/Products";
-import About from "./components/About";
-import Contact from "./components/Contact";
-import Footer from "./components/Footer";
-import WhatsAppButton from "./components/WhatsAppButton";
-import OrderForm from "./components/OrderForm";
-import Reviews from "./components/Reviews";
+import RoomTransferPage
+  from "./admin/pages/RoomTransferPage";
 
-export default function App(): JSX.Element {
-  const [dark, setDark] = useState<boolean>(false);
+import LoginPage
+  from "./admin/pages/LoginPage";
 
-  useEffect(() => {
-    document.documentElement.className = dark ? "dark" : "";
-  }, [dark]);
+import InventoryPage
+  from "./admin/pages/InventoryPage";
+
+import ProductionPage
+  from "./admin/pages/ProductionPage";
+  
+import DashboardPage from "./admin/pages/DashBoardPage";
+import HomePage from "./pages/Homepage";
+import HarvestPage from "./admin/pages/HarvestPage";
+import OrderPage from "./admin/pages/OrderPage";
+import SalesPage from "./admin/pages/SalesPage";
+
+export default function App() {
 
   return (
-    <>
-      <Navbar toggleTheme={() => setDark(!dark)} />
 
-      <Hero />
+    <BrowserRouter>
 
-      <Products />
+      <Routes>
 
-      <Reviews />
+        <Route
+          path="/"
+          element={<HomePage />}
+        />
 
-      {/* <OrderForm /> */}
+        <Route
+          path="/login"
+          element={<LoginPage />}
+        />
 
-      <About />
+        <Route
+          path="/admin/dashboard"
+          element={<DashboardPage />}
+        />
 
-      <Contact />
+        <Route
+          path="/admin/inventory"
+          element={<InventoryPage />}
+        />
 
-      <Footer />
+        <Route
+          path="/admin/production"
+          element={<ProductionPage />}
+        />
 
-      <WhatsAppButton />
-    </>
+        <Route
+          path="/admin/room-transfer"
+          element={<RoomTransferPage />}
+        />
+
+        <Route
+          path="/admin/harvest"
+          element={<HarvestPage />}
+        />
+
+        <Route
+          path="/admin/orders"
+          element={<OrderPage />}
+        />
+        <Route
+          path="/admin/sales"
+          element={<SalesPage />}
+        />
+
+      </Routes>
+
+    </BrowserRouter>
   );
 }
