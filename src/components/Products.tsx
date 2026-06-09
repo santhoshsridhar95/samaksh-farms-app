@@ -12,9 +12,9 @@ interface Product {
 const products: Product[] = [
   {
     id: 1,
-    name: "Button Mushrooms",
+    name: "Button Mushrooms (Subject to availability)",
     desc: "Fresh, firm, ideal for everyday cooking",
-    price: 200,
+    price: 199,
     unit: "kg",
     img: "/button.jpg",
   },
@@ -22,7 +22,7 @@ const products: Product[] = [
     id: 2,
     name: "Oyster Mushrooms",
     desc: "Soft texture, rich flavor, highly nutritious",
-    price: 220,
+    price: 199,
     unit: "kg",
     img: "/oyster.jpg",
   },
@@ -30,15 +30,14 @@ const products: Product[] = [
     id: 3,
     name: "Oyster Mushroom Box (200gm)",
     desc: "Fresh packed mushrooms ready for daily use",
-    price: 70,
+    price: 59,
     unit: "box",
     img: "/oyster-box.jpg",
   },
 ];
 
 export default function Products(): ReactElement {
-  const [quantities, setQuantities] =
-    useState<Record<number, number>>({});
+  const [quantities, setQuantities] = useState<Record<number, number>>({});
 
   const increaseQty = (id: number): void => {
     setQuantities((prev) => ({
@@ -54,9 +53,7 @@ export default function Products(): ReactElement {
     }));
   };
 
-  const orderOnWhatsApp = (
-    product: Product
-  ): void => {
+  const orderOnWhatsApp = (product: Product): void => {
     const qty = quantities[product.id] || 1;
     const total = qty * product.price;
 
@@ -74,12 +71,11 @@ Please share payment details.
 Thank you.
 `;
 
-    const encodedMessage =
-      encodeURIComponent(message);
+    const encodedMessage = encodeURIComponent(message);
 
     window.open(
       `https://api.whatsapp.com/send?phone=919738451955&text=${encodedMessage}`,
-      "_blank"
+      "_blank",
     );
   };
 
@@ -96,9 +92,7 @@ Thank you.
           marginBottom: "40px",
         }}
       >
-        <h2>
-          Choose Your Fresh Mushrooms
-        </h2>
+        <h2>Choose Your Fresh Mushrooms</h2>
 
         <p
           style={{
@@ -107,68 +101,50 @@ Thank you.
             margin: "10px auto",
           }}
         >
-          Freshly harvested and delivered
-          across Bengaluru and Chikkaballapur.
+          Freshly harvested and delivered across Bengaluru and Chikkaballapur.
         </p>
       </div>
 
       <div className="products-grid">
         {products.map((product) => {
-          const qty =
-            quantities[product.id] || 1;
+          const qty = quantities[product.id] || 1;
 
           return (
-            <div
-              key={product.id}
-              className="card product-card"
-            >
+            <div key={product.id} className="card product-card">
               <img
                 src={product.img}
                 alt={product.name}
                 className="product-img"
-                onError={(
-                  event: SyntheticEvent<HTMLImageElement>
-                ) => {
-                  event.currentTarget.src =
-                    "/fallback.jpg";
+                onError={(event: SyntheticEvent<HTMLImageElement>) => {
+                  event.currentTarget.src = "/fallback.jpg";
                 }}
               />
 
               <div className="product-content">
                 <h3>{product.name}</h3>
 
-                <p className="product-desc">
-                  {product.desc}
-                </p>
+                <p className="product-desc">{product.desc}</p>
 
                 <div className="product-price">
                   Rs. {product.price}
-                  {product.unit === "kg"
-                    ? "/kg"
-                    : ""}
+                  {product.unit === "kg" ? "/kg" : ""}
                 </div>
 
                 <div className="qty-wrapper">
                   <button
                     className="qty-btn"
                     type="button"
-                    onClick={() =>
-                      decreaseQty(product.id)
-                    }
+                    onClick={() => decreaseQty(product.id)}
                   >
                     -
                   </button>
 
-                  <span className="qty-value">
-                    {qty}
-                  </span>
+                  <span className="qty-value">{qty}</span>
 
                   <button
                     className="qty-btn"
                     type="button"
-                    onClick={() =>
-                      increaseQty(product.id)
-                    }
+                    onClick={() => increaseQty(product.id)}
                   >
                     +
                   </button>
@@ -188,9 +164,7 @@ Thank you.
                 <button
                   className="btn whatsapp-order-btn"
                   type="button"
-                  onClick={() =>
-                    orderOnWhatsApp(product)
-                  }
+                  onClick={() => orderOnWhatsApp(product)}
                 >
                   Order on WhatsApp
                 </button>
