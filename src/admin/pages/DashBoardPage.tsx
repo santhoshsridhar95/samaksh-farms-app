@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import "./DashboardPage.css"; 
+import "./DashBoardPage.css";
 
 import {
   AlertTriangle,
