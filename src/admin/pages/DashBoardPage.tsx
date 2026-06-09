@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import "./DashboardPage.css";
+
 import {
   AlertTriangle,
   Bug,
@@ -8,11 +10,17 @@ import {
   Package,
   Sprout,
   Users,
-  Warehouse
+  Warehouse,
 } from "lucide-react";
 
 import AdminLayout from "../components/AdminLayout";
-import { EmptyState, PageHeader, Panel, StatCard, StatusPill } from "../components/AdminUI";
+import {
+  EmptyState,
+  PageHeader,
+  Panel,
+  StatCard,
+  StatusPill,
+} from "../components/AdminUI";
 import api from "../services/api";
 
 export default function DashboardPage() {
@@ -166,10 +174,26 @@ export default function DashboardPage() {
           {alerts.length > 0 && (
             <div className="admin-alert-list">
               {alerts.map((alert, index) => (
-                <article className="admin-alert-item" key={`${alert.inventoryType}-${index}`}>
+                <article
+                  className={
+                    alert.alertStatus === "OK"
+                      ? "admin-alert-item admin-alert-ok"
+                      : "admin-alert-item admin-alert-danger"
+                  }
+                  key={`${alert.inventoryType}-${index}`}
+                >
                   <header>
                     <h3>{alert.inventoryType}</h3>
-                    <StatusPill status={alert.alertStatus || "Low stock"} tone="danger" />
+                    <StatusPill
+                      status={alert.alertStatus || "LOW_STOCK"}
+                      tone={
+                        alert.alertStatus === "OK"
+                          ? "success"
+                          : alert.alertStatus === "WARNING"
+                            ? "warning"
+                            : "danger"
+                      }
+                    />
                   </header>
 
                   <div className="admin-record-details">
@@ -194,7 +218,7 @@ export default function DashboardPage() {
         >
           <img
             className="admin-summary-media"
-            src="/hero.jpg"
+            src="/mush-farm.jpg"
             alt="Samaksh Farms mushrooms"
           />
 
