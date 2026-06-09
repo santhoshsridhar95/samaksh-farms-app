@@ -1,34 +1,28 @@
 export default function About() {
   return (
     <section className="section container about-section">
-
       <div className="about-grid">
-
         {/* LEFT SIDE */}
 
         <div className="about-left">
-
-          <span className="about-label">
-            ABOUT SAMAKSH FARMS
-          </span>
+          <span className="about-label">ABOUT SAMAKSH FARMS</span>
 
           <h2 className="about-title">
-            Fresh mushrooms grown at our farm in Chikkaballapur and
-            delivered directly to homes across Bengaluru and
-            Chikkaballapur.
+            Fresh mushrooms grown at our farm in Chikkaballapur and delivered
+            directly to homes across Bengaluru and Chikkaballapur.
           </h2>
 
           <p className="about-text">
-            Samaksh Farms is a family-run mushroom farm focused on
-            cultivating fresh, premium-quality mushrooms in a clean and
-            carefully controlled environment.
+            Samaksh Farms is a passionate agri-venture founded by a team of
+            friends committed to growing fresh, nutritious, and high-quality
+            mushrooms using modern cultivation practices.
           </p>
 
           <p className="about-text">
-            We believe customers deserve to know where their food comes
-            from. That's why every mushroom we sell is grown, harvested,
-            packed and delivered by us — ensuring freshness, quality and
-            consistency in every order.
+            We believe customers deserve to know where their food comes from.
+            That's why every mushroom we sell is grown, harvested, packed and
+            delivered by us — ensuring freshness, quality and consistency in
+            every order.
           </p>
 
           <div className="about-tags">
@@ -37,13 +31,11 @@ export default function About() {
             <span>No Middlemen</span>
             <span>Fast Delivery</span>
           </div>
-
         </div>
 
         {/* RIGHT SIDE */}
 
         <div className="about-right">
-
           <div className="trust-card card-1">
             <h3>24 Hrs</h3>
             <p>Fresh Delivery</p>
@@ -63,15 +55,12 @@ export default function About() {
             <h3>Direct</h3>
             <p>No Middlemen</p>
           </div>
-
         </div>
-
       </div>
 
       {/* BRAND STATEMENT */}
 
       <div className="about-brand">
-
         <span className="brand-line"></span>
 
         <div className="brand-message">
@@ -81,9 +70,7 @@ export default function About() {
         </div>
 
         <span className="brand-line"></span>
-
       </div>
-
     </section>
   );
 }
