@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 
 interface Review {
   name: string;
@@ -6,40 +6,40 @@ interface Review {
   review: string;
 }
 
-export default function Reviews(): JSX.Element {
-  const reviews: Review[] = [
-    {
-      name: "Ravi Kumar",
-      location: "Hebbal, Bengaluru",
-      review:
-        "Fresh mushrooms, excellent quality and neatly packed.",
-    },
-    {
-      name: "Sneha Reddy",
-      location: "RT Nagar, Bengaluru",
-      review:
-        "Very fresh oyster mushrooms. Excellent quality.",
-    },
-    {
-      name: "Arjun N",
-      location: "HBR Layout, Bengaluru",
-      review:
-        "Consistent quality every time.",
-    },
-    {
-      name: "Manjunath S",
-      location: "Devanahalli, Bengaluru",
-      review:
-        "Everyone appreciated the freshness and taste.",
-    },
-    {
-      name: "Priya Sharma",
-      location: "Yelahanka, Bengaluru",
-      review:
-        "Fresh and well packed mushrooms.",
-    },
-  ];
+const reviews: Review[] = [
+  {
+    name: "Ravi Kumar",
+    location: "Hebbal, Bengaluru",
+    review:
+      "Fresh mushrooms, excellent quality and neatly packed.",
+  },
+  {
+    name: "Sneha Reddy",
+    location: "RT Nagar, Bengaluru",
+    review:
+      "Very fresh oyster mushrooms. Excellent quality.",
+  },
+  {
+    name: "Arjun N",
+    location: "HBR Layout, Bengaluru",
+    review:
+      "Consistent quality every time.",
+  },
+  {
+    name: "Manjunath S",
+    location: "Devanahalli, Bengaluru",
+    review:
+      "Everyone appreciated the freshness and taste.",
+  },
+  {
+    name: "Priya Sharma",
+    location: "Yelahanka, Bengaluru",
+    review:
+      "Fresh and well packed mushrooms.",
+  },
+];
 
+export default function Reviews(): ReactElement {
   const getVisibleCards = (): number => {
     if (window.innerWidth < 768) return 1;
     if (window.innerWidth < 1024) return 2;
@@ -83,7 +83,7 @@ export default function Reviews(): JSX.Element {
     }, 5000);
 
     return () => clearInterval(timer);
-  }, [paused, reviews.length]);
+  }, [paused]);
 
   const next = (): void => {
     setStartIndex(
@@ -151,9 +151,10 @@ export default function Reviews(): JSX.Element {
       >
         <button
           className="review-arrow"
+          type="button"
           onClick={prev}
         >
-          ←
+          {"<"}
         </button>
 
         <div className="reviews-grid-slider">
@@ -164,7 +165,7 @@ export default function Reviews(): JSX.Element {
                 className="review-card"
               >
                 <div className="stars">
-                  ★★★★★
+                  *****
                 </div>
 
                 <p className="review-text">
@@ -187,9 +188,10 @@ export default function Reviews(): JSX.Element {
 
         <button
           className="review-arrow"
+          type="button"
           onClick={next}
         >
-          →
+          {">"}
         </button>
       </div>
     </section>
