@@ -1,4 +1,5 @@
 import { useState } from "react";
+import api from "../services/api";
 
 export default function LoginPage() {
 
@@ -8,12 +9,53 @@ export default function LoginPage() {
   const [password, setPassword] =
     useState("");
 
-  const login = () => {
+  const login = async () => {
+
+  try {
+
+    const response =
+      await api.post(
+        "/api/auth/login",
+        {
+          email,
+          password
+        }
+      );
+
+    const data = response.data;
+
+    localStorage.setItem(
+      "token",
+      data.token
+    );
+
+    localStorage.setItem(
+      "role",
+      data.role
+    );
+
+    localStorage.setItem(
+      "userName",
+      data.name
+    );
+
+    localStorage.setItem(
+      "userId",
+      String(data.userId)
+    );
+
+    window.location.href =
+      "/admin/dashboard";
+
+  } catch (error) {
 
     alert(
-      "JWT Login Coming Next"
+      "Invalid email or password"
     );
-  };
+
+    console.error(error);
+  }
+};
 
   return (
 
