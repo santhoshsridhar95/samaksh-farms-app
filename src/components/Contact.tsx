@@ -1,3 +1,5 @@
+import "./Contact.css";
+
 import {
   FaWhatsapp,
   FaPhoneAlt,
@@ -19,20 +21,20 @@ export default function Contact() {
         </p>
 
         <div className="contact-details">
-          <div className="contact-detail">
+          <a href="tel:+919945129686" className="phone-link">
             <FaPhoneAlt />
-            <span>
-              <a href="tel:+919945129686">+91 99451 29686</a>
-            </span>
+            <span>+91 99451 29686</span>
+          </a>
+
+          <a href="tel:+919738451955" className="phone-link">
             <FaPhoneAlt />
-            <span>
-              <a href="tel:+919738451955">+91 97384 51955</a>
-            </span>
+            <span>+91 97384 51955</span>
+          </a>
+
+          <a href="tel:+917892963973" className="phone-link">
             <FaPhoneAlt />
-            <span>
-              <a href="tel:+917892963973">+91 7892 963973</a>
-            </span>
-          </div>
+            <span>+91 7892 963973</span>
+          </a>
         </div>
 
         <a
