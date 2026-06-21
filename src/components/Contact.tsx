@@ -21,11 +21,17 @@ export default function Contact() {
         <div className="contact-details">
           <div className="contact-detail">
             <FaPhoneAlt />
-            <span>+91 99451 29686</span>
+            <span>
+              <a href="tel:+919945129686">+91 99451 29686</a>
+            </span>
             <FaPhoneAlt />
-            <span>+91 97384 51955</span>
+            <span>
+              <a href="tel:+919738451955">+91 97384 51955</a>
+            </span>
             <FaPhoneAlt />
-            <span>+91 7892 963973</span>
+            <span>
+              <a href="tel:+917892963973">+91 7892 963973</a>
+            </span>
           </div>
         </div>
 
@@ -42,7 +48,7 @@ export default function Contact() {
 
         <div className="social-links">
           <a
-            href="YOUR_INSTAGRAM_LINK"
+            href="https://www.instagram.com/samaksh_farms/"
             target="_blank"
             rel="noreferrer"
             className="social-link"
@@ -52,7 +58,7 @@ export default function Contact() {
           </a>
 
           <a
-            href="YOUR_YOUTUBE_LINK"
+            href="https://www.youtube.com/@SamakshFarms"
             target="_blank"
             rel="noreferrer"
             className="social-link"

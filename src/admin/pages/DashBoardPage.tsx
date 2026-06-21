@@ -219,7 +219,7 @@ export default function DashboardPage() {
         >
           <img
             className="admin-summary-media"
-            src="/mush-farm.jpg"
+            src="/mushroom-farm.jpg"
             alt="Samaksh Farms mushrooms"
           />
 
