@@ -16,7 +16,7 @@ const products: Product[] = [
     desc: "Fresh, firm, ideal for everyday cooking.  (Subject to availability)",
     price: 199,
     unit: "kg",
-    img: "/button.jpg",
+    img: "/button-mushroom.jpg",
   },
   {
     id: 2,
@@ -24,7 +24,7 @@ const products: Product[] = [
     desc: "Soft texture, rich flavor, highly nutritious",
     price: 199,
     unit: "kg",
-    img: "/oyster.jpg",
+    img: "/oyster-mushroom.jpg",
   },
   {
     id: 3,
@@ -32,7 +32,7 @@ const products: Product[] = [
     desc: "Fresh packed mushrooms ready for daily use",
     price: 59,
     unit: "box",
-    img: "/oyster-box.jpg",
+    img: "/oyster-mushroom-box.jpg",
   },
 ];
 
