@@ -14,6 +14,7 @@ import HarvestPage from "./admin/pages/HarvestPage";
 import OrderPage from "./admin/pages/OrderPage";
 import SalesPage from "./admin/pages/SalesPage";
 import UserManagementPage from "./admin/pages/UserManagementPage";
+import AuditTrailPage from "./admin/pages/AuditTrailPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import RoleBasedRoute from "./routes/RoleProtectedRoute";
 
@@ -24,6 +25,13 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
 
         <Route path="/login" element={<LoginPage />} />
+
+        <Route path="/signup" element={<LoginPage initialMode="signup" />} />
+
+        <Route
+          path="/forgot-password"
+          element={<LoginPage initialMode="forgot" />}
+        />
 
         <Route
           path="/admin/dashboard"
@@ -125,6 +133,15 @@ export default function App() {
           element={
             <RoleBasedRoute allowedRoles={["SUPER_ADMIN"]}>
               <UserManagementPage />
+            </RoleBasedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/audit"
+          element={
+            <RoleBasedRoute allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN"]}>
+              <AuditTrailPage />
             </RoleBasedRoute>
           }
         />

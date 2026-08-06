@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, KeyRound, UserPlus, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  KeyRound,
+  Trash2,
+  UserPlus,
+  XCircle,
+} from "lucide-react";
 
 import AdminLayout from "../components/AdminLayout";
 import { EmptyState, Field, PageHeader, Panel, StatusPill } from "../components/AdminUI";
@@ -26,6 +33,7 @@ export default function UserManagementPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({});
+  const [userToDelete, setUserToDelete] = useState<any>(null);
 
   useEffect(() => {
     loadUsers();
@@ -37,6 +45,11 @@ export default function UserManagementPage() {
   };
 
   const createUser = async () => {
+    if (!/^[0-9]{10}$/.test(form.phoneNumber.trim())) {
+      alert("Phone number must be exactly 10 digits");
+      return;
+    }
+
     await api.post("/api/users", form);
     setForm(emptyForm);
     loadUsers();
@@ -73,6 +86,16 @@ export default function UserManagementPage() {
     loadUsers();
   };
 
+  const deleteUser = async () => {
+    if (!userToDelete) {
+      return;
+    }
+
+    await api.delete(`/api/users/${userToDelete.id}`);
+    setUserToDelete(null);
+    loadUsers();
+  };
+
   return (
     <AdminLayout>
       <PageHeader
@@ -101,9 +124,14 @@ export default function UserManagementPage() {
           </Field>
           <Field label="Phone">
             <input
+              inputMode="numeric"
+              maxLength={10}
               value={form.phoneNumber}
               onChange={(event) =>
-                setForm({ ...form, phoneNumber: event.target.value })
+                setForm({
+                  ...form,
+                  phoneNumber: event.target.value.replace(/\D/g, "").slice(0, 10),
+                })
               }
             />
           </Field>
@@ -221,6 +249,14 @@ export default function UserManagementPage() {
                         >
                           <XCircle size={16} />
                         </button>
+                        <button
+                          className="admin-icon-button admin-icon-danger"
+                          type="button"
+                          title="Delete user"
+                          onClick={() => setUserToDelete(user)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -230,6 +266,40 @@ export default function UserManagementPage() {
           </div>
         )}
       </Panel>
+
+      {userToDelete && (
+        <div className="admin-modal-backdrop" role="presentation">
+          <div className="admin-confirm-modal" role="dialog" aria-modal="true">
+            <div className="admin-confirm-icon">
+              <AlertTriangle size={22} />
+            </div>
+            <div>
+              <h2>Delete this user?</h2>
+              <p>
+                This will soft delete <strong>{userToDelete.name}</strong>. The
+                login will be disabled and the record will be hidden from this
+                list, but audit history will remain.
+              </p>
+            </div>
+            <div className="admin-confirm-actions">
+              <button
+                className="admin-button admin-button-secondary"
+                type="button"
+                onClick={() => setUserToDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="admin-button admin-button-danger"
+                type="button"
+                onClick={deleteUser}
+              >
+                Delete User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

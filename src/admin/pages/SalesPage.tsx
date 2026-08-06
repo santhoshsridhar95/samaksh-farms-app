@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Download,
+  AlertTriangle,
   IndianRupee,
   Pencil,
   Receipt,
   Save,
   Search,
   Store,
-  Trophy,
+  Trash2,
   WalletCards,
 } from "lucide-react";
 
@@ -21,11 +22,20 @@ import {
   StatusPill,
 } from "../components/AdminUI";
 import api from "../services/api";
+import { downloadSalesWorkbook } from "../utils/excelExport";
 
 const exchangeTypes = [
   { value: "NONE", label: "None" },
   { value: "ONE_ON_ONE", label: "1 on 1" },
   { value: "TWO_ON_ONE", label: "2 on 1" },
+];
+
+const shopProductOptions = [
+  "Oyster Mushroom",
+  "Button Mushroom",
+  "Sweet Corn",
+  "Baby Corn",
+  "Paneer",
 ];
 
 const emptyShopForm = {
@@ -35,12 +45,14 @@ const emptyShopForm = {
   phoneNumber: "",
   email: "",
   address: "",
+  location: "R.T. Nagar",
   shopCategory: "Vegetable Shop",
   minimumBoxesPerDay: "10",
   dailyReturnedBoxes: "0",
   defaultBoxPrice: "50",
   shopkeeperSellingPrice: "60",
   exchangeType: "NONE",
+  products: ["Oyster Mushroom"],
   active: true,
 };
 
@@ -62,13 +74,17 @@ type SaleForm = typeof emptySaleForm;
 
 export default function SalesPage() {
   const [customers, setCustomers] = useState<any[]>([]);
+  const [allCustomers, setAllCustomers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [shopSearch, setShopSearch] = useState("");
+  const [shopSearchOpen, setShopSearchOpen] = useState(false);
+  const [customProductName, setCustomProductName] = useState("");
   const [activeTab, setActiveTab] = useState("delivery");
   const [selectedHistoryShopId, setSelectedHistoryShopId] = useState("");
   const [historyPage, setHistoryPage] = useState(0);
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [shopToDelete, setShopToDelete] = useState<any>(null);
   const [shopForm, setShopForm] = useState<ShopForm>(emptyShopForm);
   const [saleForm, setSaleForm] = useState<SaleForm>(emptySaleForm);
 
@@ -77,8 +93,8 @@ export default function SalesPage() {
     role === "SUPER_ADMIN" || permissions.includes(permission);
   const canManageShops = hasPermission("sales.manage_shops");
   const canViewLedger = hasPermission("sales.view_ledger");
-  const canViewConfidential = hasPermission("sales.view_confidential");
   const canCreateDelivery = hasPermission("sales.create_delivery");
+  const canDeleteShops = role === "SUPER_ADMIN";
 
   useEffect(() => {
     loadData();
@@ -87,11 +103,15 @@ export default function SalesPage() {
   const loadData = async () => {
     try {
       const customerResponse = await api.get("/api/customers?size=1000");
+      const allCustomerResponse = await api.get(
+        "/api/customers?size=1000&includeInactive=true",
+      );
       const productResponse = await api.get("/api/products");
       const salesResponse = await api.get("/api/sales?size=1000");
       const entitlementResponse = await api.get("/api/entitlements/me");
 
       setCustomers(customerResponse?.data?.data?.content || []);
+      setAllCustomers(allCustomerResponse?.data?.data?.content || []);
       setProducts(productResponse.data.data || []);
       setSales(salesResponse?.data?.data?.content || []);
       setPermissions(entitlementResponse?.data?.data?.permissions || []);
@@ -119,26 +139,14 @@ export default function SalesPage() {
   const pendingForThisSale = totalAmount - amountCollected;
   const balanceAfterCollection = selectedShopBalance + pendingForThisSale;
 
-  const totalRevenue = (sales || []).reduce(
-    (total, sale) => total + (Number(sale.totalAmount) || 0),
-    0,
-  );
-  const totalCollected = (sales || []).reduce(
-    (total, sale) => total + (Number(sale.amountCollected) || 0),
-    0,
-  );
-  const totalPending = (sales || []).reduce(
-    (total, sale) => total + salePending(sale),
-    0,
-  );
-  const topShop = topShopForSales(sales);
-
   const filteredShops = customers.filter((customer) => {
     const searchable = [
       customer.customerName,
       customer.shopCategory,
+      customer.location,
       customer.contactPerson,
       customer.phoneNumber,
+      ...(customer.products || []),
     ]
       .filter(Boolean)
       .join(" ")
@@ -147,7 +155,7 @@ export default function SalesPage() {
     return searchable.includes(shopSearch.toLowerCase());
   });
 
-  const selectedHistoryShop = customers.find(
+  const selectedHistoryShop = allCustomers.find(
     (customer) => String(customer.id) === String(selectedHistoryShopId),
   );
   const selectedHistorySales = sales.filter(
@@ -174,11 +182,45 @@ export default function SalesPage() {
     canViewLedger && { id: "history", label: "Shop History" },
   ].filter(Boolean) as { id: string; label: string }[];
 
-  const updateShopField = (field: keyof ShopForm, value: string | boolean) => {
+  const updateShopField = (
+    field: keyof ShopForm,
+    value: string | boolean | string[],
+  ) => {
     setShopForm((current) => ({
       ...current,
       [field]: value,
     }));
+  };
+
+  const toggleShopProduct = (productName: string) => {
+    setShopForm((current) => {
+      const selected = current.products.includes(productName);
+
+      return {
+        ...current,
+        products: selected
+          ? current.products.filter((product) => product !== productName)
+          : [...current.products, productName],
+      };
+    });
+  };
+
+  const addCustomProduct = () => {
+    const productName = customProductName.trim();
+
+    if (!productName) {
+      return;
+    }
+
+    setShopForm((current) => ({
+      ...current,
+      products: current.products.some(
+        (product) => product.toLowerCase() === productName.toLowerCase(),
+      )
+        ? current.products
+        : [...current.products, productName],
+    }));
+    setCustomProductName("");
   };
 
   const updateSaleField = (field: keyof SaleForm, value: string) => {
@@ -196,30 +238,42 @@ export default function SalesPage() {
       phoneNumber: customer.phoneNumber || "",
       email: customer.email || "",
       address: customer.address || "",
+      location: customer.location || "R.T. Nagar",
       shopCategory: customer.shopCategory || "Vegetable Shop",
       minimumBoxesPerDay: String(customer.minimumBoxesPerDay ?? "10"),
       defaultBoxPrice: String(customer.defaultBoxPrice ?? "50"),
       shopkeeperSellingPrice: String(customer.shopkeeperSellingPrice ?? "60"),
       dailyReturnedBoxes: String(customer.dailyReturnedBoxes ?? "0"),
       exchangeType: customer.exchangeType || "NONE",
+      products: normalizeShopProducts(customer.products),
       active: customer.active ?? true,
     });
   };
 
   const saveShop = async () => {
     try {
+      if (
+        shopForm.phoneNumber.trim() &&
+        !/^[0-9]{10}$/.test(shopForm.phoneNumber.trim())
+      ) {
+        alert("Phone number must be exactly 10 digits");
+        return;
+      }
+
       const payload = {
         customerName: shopForm.customerName,
         contactPerson: shopForm.contactPerson,
         phoneNumber: shopForm.phoneNumber,
         email: shopForm.email,
         address: shopForm.address,
+        location: shopForm.location,
         shopCategory: shopForm.shopCategory,
         minimumBoxesPerDay: Number(shopForm.minimumBoxesPerDay) || 0,
         defaultBoxPrice: Number(shopForm.defaultBoxPrice) || 0,
         shopkeeperSellingPrice: Number(shopForm.shopkeeperSellingPrice) || 0,
         dailyReturnedBoxes: Number((shopForm as any).dailyReturnedBoxes) || 0,
         exchangeType: shopForm.exchangeType,
+        products: normalizeShopProducts(shopForm.products),
         active: shopForm.active,
       };
 
@@ -236,6 +290,24 @@ export default function SalesPage() {
     } catch (error: any) {
       console.error(error);
       alert(error?.response?.data?.message || "Failed to save shop");
+    }
+  };
+
+  const deleteShop = async () => {
+    if (!shopToDelete) {
+      return;
+    }
+
+    try {
+      await api.delete(`/api/customers/${shopToDelete.id}`);
+      setShopToDelete(null);
+      if (String(shopForm.id) === String(shopToDelete.id)) {
+        setShopForm(emptyShopForm);
+      }
+      loadData();
+    } catch (error: any) {
+      console.error(error);
+      alert(error?.response?.data?.message || "Failed to delete shop");
     }
   };
 
@@ -267,6 +339,12 @@ export default function SalesPage() {
     }));
   };
 
+  const chooseSaleShop = (customer: any) => {
+    selectSaleShop(String(customer.id));
+    setShopSearch(customer.customerName || "");
+    setShopSearchOpen(false);
+  };
+
   const createSale = async () => {
     try {
       await api.post("/api/sales", {
@@ -293,53 +371,7 @@ export default function SalesPage() {
   };
 
   const downloadSalesCsv = () => {
-    const headers = [
-      "Date",
-      "Shop",
-      "Category",
-      "Product",
-      "Boxes",
-      "Unit Price",
-      "Total Amount",
-      "Amount Collected",
-      "Pending Amount",
-      "Shopkeeper Selling Price",
-      "Exchange Type",
-      "Exchange Boxes",
-      "Returned Boxes",
-      "Payment Status",
-      "Remarks",
-    ];
-
-    const rows = sales.map((sale) => [
-      formatDate(sale.saleDate),
-      sale.customerName,
-      sale.shopCategory,
-      sale.productName,
-      sale.quantity,
-      sale.unitPrice,
-      sale.totalAmount,
-      sale.amountCollected ?? 0,
-      salePending(sale),
-      sale.shopkeeperSellingPrice ?? "",
-      formatExchange(sale.exchangeType),
-      sale.exchangeBoxes ?? 0,
-      sale.returnedBoxes ?? 0,
-      sale.paymentStatus,
-      sale.remarks || "",
-    ]);
-
-    const csv = [headers, ...rows]
-      .map((row) => row.map(csvCell).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = `samaksh-sales-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadSalesWorkbook(customers, sales);
   };
 
   return (
@@ -347,45 +379,18 @@ export default function SalesPage() {
       <PageHeader
         eyebrow="Sales"
         title="Shop Sales"
-        subtitle="Set shop defaults once, then let delivery staff record boxes, collections, exchanges, and balances quickly."
-        actions={
+        subtitle="Use this workspace for delivery entry, shop setup, ledger checks, and shop-wise history."
+        actions={canViewLedger ? (
           <button
             className="admin-button"
             type="button"
             onClick={downloadSalesCsv}
           >
             <Download size={17} />
-            Download Excel CSV
+            Download Excel
           </button>
-        }
+        ) : null}
       />
-
-      <div className="admin-stat-grid">
-        <StatCard
-          label="Sales Value"
-          value={canViewConfidential ? `Rs. ${totalRevenue}` : "Restricted"}
-          icon={<IndianRupee size={20} />}
-          tone="green"
-        />
-        <StatCard
-          label="Collected"
-          value={canViewConfidential ? `Rs. ${totalCollected}` : "Restricted"}
-          icon={<WalletCards size={20} />}
-          tone="blue"
-        />
-        <StatCard
-          label="Pending Balance"
-          value={canViewConfidential ? `Rs. ${totalPending}` : "Selected shop only"}
-          icon={<Receipt size={20} />}
-          tone="amber"
-        />
-        <StatCard
-          label="Top Shop"
-          value={canViewConfidential ? topShop : "Restricted"}
-          icon={<Trophy size={20} />}
-          tone="violet"
-        />
-      </div>
 
       <div className="admin-tabbar" role="tablist" aria-label="Sales sections">
         {tabs.map((tab) => (
@@ -403,7 +408,7 @@ export default function SalesPage() {
       {canManageShops && activeTab === "shops" && (
         <Panel
           title={shopForm.id ? "Edit Shop" : "Admin Shop Setup"}
-          subtitle="Create shops with category, daily box reference, box price, selling price, and exchange policy."
+          subtitle="Create and maintain active shops. Super admin can softly delete a shop without losing history."
         >
           <div className="admin-form-grid">
             <Field label="Shop Name">
@@ -429,6 +434,75 @@ export default function SalesPage() {
                 <option value="Hotel" />
                 <option value="Restaurant" />
               </datalist>
+            </Field>
+
+            <Field label="Products" span="full">
+              <div className="admin-multiselect">
+                <div className="admin-chip-row">
+                  {shopProductOptions.map((productName) => (
+                    <button
+                      key={productName}
+                      className={`admin-chip ${
+                        shopForm.products.includes(productName)
+                          ? "is-selected"
+                          : ""
+                      }`}
+                      type="button"
+                      onClick={() => toggleShopProduct(productName)}
+                    >
+                      {productName}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="admin-custom-entry">
+                  <input
+                    value={customProductName}
+                    onChange={(event) => setCustomProductName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addCustomProduct();
+                      }
+                    }}
+                    placeholder="Add custom product"
+                  />
+                  <button
+                    className="admin-button admin-button-secondary"
+                    type="button"
+                    onClick={addCustomProduct}
+                  >
+                    Add
+                  </button>
+                </div>
+
+                <div className="admin-selected-chips">
+                  {shopForm.products.length === 0 && (
+                    <span>No products selected</span>
+                  )}
+                  {shopForm.products.map((productName) => (
+                    <span className="admin-selected-chip" key={productName}>
+                      {productName}
+                      <button
+                        type="button"
+                        onClick={() => toggleShopProduct(productName)}
+                        aria-label={`Remove ${productName}`}
+                      >
+                        x
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </Field>
+
+            <Field label="Location">
+              <input
+                value={shopForm.location}
+                onChange={(event) =>
+                  updateShopField("location", event.target.value)
+                }
+              />
             </Field>
 
             <Field label="Minimum Boxes / Day">
@@ -497,9 +571,14 @@ export default function SalesPage() {
 
             <Field label="Phone">
               <input
+                inputMode="numeric"
+                maxLength={10}
                 value={shopForm.phoneNumber}
                 onChange={(event) =>
-                  updateShopField("phoneNumber", event.target.value)
+                  updateShopField(
+                    "phoneNumber",
+                    event.target.value.replace(/\D/g, "").slice(0, 10),
+                  )
                 }
               />
             </Field>
@@ -539,20 +618,27 @@ export default function SalesPage() {
               <Search size={17} />
               <input
                 value={shopSearch}
-                onChange={(event) => setShopSearch(event.target.value)}
-                placeholder="Search by shop, category, person, phone"
+                onChange={(event) => {
+                  setShopSearch(event.target.value);
+                  setShopSearchOpen(true);
+                }}
+                onFocus={() => setShopSearchOpen(true)}
+                placeholder="Search by shop, location, category, person, phone"
               />
             </div>
-            {shopSearch && (
+            {shopSearchOpen && shopSearch && (
               <div className="sales-live-results">
                 {filteredShops.slice(0, 6).map((customer) => (
                   <button
                     key={customer.id}
                     type="button"
-                    onClick={() => selectSaleShop(String(customer.id))}
+                    onClick={() => chooseSaleShop(customer)}
                   >
                     <strong>{customer.customerName}</strong>
-                    <span>{customer.shopCategory || "Shop"}</span>
+                    <span>
+                      {customer.location || "R.T. Nagar"} -{" "}
+                      {customer.shopCategory || "Shop"}
+                    </span>
                   </button>
                 ))}
                 {filteredShops.length === 0 && <span>No shops found</span>}
@@ -564,12 +650,15 @@ export default function SalesPage() {
             <select
               className={saleForm.customerId ? "is-shop-selected" : ""}
               value={saleForm.customerId}
-              onChange={(event) => selectSaleShop(event.target.value)}
+              onChange={(event) => {
+                selectSaleShop(event.target.value);
+                setShopSearchOpen(false);
+              }}
             >
               <option value="">Select shop</option>
               {filteredShops.map((customer) => (
                 <option key={customer.id} value={customer.id}>
-                  {customer.customerName} - {customer.shopCategory || "Shop"}
+                  {customer.customerName} - {customer.location || "R.T. Nagar"}
                 </option>
               ))}
             </select>
@@ -582,6 +671,7 @@ export default function SalesPage() {
               <Store size={16} />
               {selectedShop.shopCategory || "Shop"}
             </span>
+            <span>{selectedShop.location || "R.T. Nagar"}</span>
             <span>Daily ref: {selectedShop.minimumBoxesPerDay ?? 0} boxes</span>
             <span>Current balance: Rs. {selectedShopBalance}</span>
             <span>After entry: Rs. {balanceAfterCollection}</span>
@@ -716,6 +806,8 @@ export default function SalesPage() {
                   <tr>
                     <th>Shop</th>
                     <th>Category</th>
+                    <th>Products</th>
+                    <th>Location</th>
                     <th>Daily Boxes</th>
                     <th>Returned / Day</th>
                     <th>Box Price</th>
@@ -730,6 +822,8 @@ export default function SalesPage() {
                     <tr key={customer.id}>
                       <td>{customer.customerName}</td>
                       <td>{customer.shopCategory || "Shop"}</td>
+                      <td>{formatShopProducts(customer.products)}</td>
+                      <td>{customer.location || "R.T. Nagar"}</td>
                       <td>{customer.minimumBoxesPerDay ?? 0}</td>
                       <td>{customer.dailyReturnedBoxes ?? 0}</td>
                       <td>Rs. {customer.defaultBoxPrice ?? 0}</td>
@@ -737,6 +831,7 @@ export default function SalesPage() {
                       <td>{formatExchange(customer.exchangeType)}</td>
                       <td>Rs. {calculateShopBalance(sales, customer.id)}</td>
                       <td>
+                        <div className="admin-row-actions">
                         <button
                           className="admin-icon-button"
                           type="button"
@@ -745,6 +840,17 @@ export default function SalesPage() {
                         >
                           <Pencil size={16} />
                         </button>
+                        {canDeleteShops && (
+                          <button
+                            className="admin-icon-button admin-icon-danger"
+                            type="button"
+                            title="Delete shop"
+                            onClick={() => setShopToDelete(customer)}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -770,9 +876,10 @@ export default function SalesPage() {
                 }}
               >
                 <option value="">Select shop</option>
-                {customers.map((customer) => (
+                {allCustomers.map((customer) => (
                   <option key={customer.id} value={customer.id}>
                     {customer.customerName}
+                    {customer.active === false ? " (deleted)" : ""}
                   </option>
                 ))}
               </select>
@@ -910,7 +1017,10 @@ export default function SalesPage() {
                     <td>{formatDate(sale.saleDate)}</td>
                     <td>
                       <strong>{sale.customerName}</strong>
-                      <span>{sale.shopCategory || sale.productName}</span>
+                      <span>
+                        {sale.location || "R.T. Nagar"} -{" "}
+                        {sale.shopCategory || sale.productName}
+                      </span>
                     </td>
                     <td>{sale.quantity}</td>
                     <td>Rs. {sale.unitPrice}</td>
@@ -936,6 +1046,41 @@ export default function SalesPage() {
         )}
       </Panel>
       )}
+
+      {shopToDelete && (
+        <div className="admin-modal-backdrop" role="presentation">
+          <div className="admin-confirm-modal" role="dialog" aria-modal="true">
+            <div className="admin-confirm-icon">
+              <AlertTriangle size={22} />
+            </div>
+            <div>
+              <h2>Delete this shop?</h2>
+              <p>
+                This will soft delete{" "}
+                <strong>{shopToDelete.customerName}</strong>. It will no longer
+                appear in delivery entry or shop master, but its sales and audit
+                history will remain available.
+              </p>
+            </div>
+            <div className="admin-confirm-actions">
+              <button
+                className="admin-button admin-button-secondary"
+                type="button"
+                onClick={() => setShopToDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="admin-button admin-button-danger"
+                type="button"
+                onClick={deleteShop}
+              >
+                Delete Shop
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }
@@ -958,20 +1103,37 @@ function calculateShopBalance(sales: any[], customerId: number) {
     .reduce((total, sale) => total + salePending(sale), 0);
 }
 
-function topShopForSales(sales: any[]) {
-  const totals = sales.reduce<Record<string, number>>((result, sale) => {
-    const name = sale.customerName || "Unknown";
-    result[name] = (result[name] || 0) + (Number(sale.totalAmount) || 0);
-    return result;
-  }, {});
-
-  const top = Object.entries(totals).sort((a, b) => b[1] - a[1])[0];
-
-  return top ? `${top[0]} (Rs. ${top[1]})` : "No sales";
-}
-
 function formatExchange(value?: string) {
   return exchangeTypes.find((type) => type.value === value)?.label || "None";
+}
+
+function normalizeShopProducts(value?: string[] | string) {
+  if (Array.isArray(value)) {
+    return value
+      .map((product) => String(product || "").trim())
+      .filter(Boolean)
+      .filter(
+        (product, index, products) =>
+          products.findIndex(
+            (item) => item.toLowerCase() === product.toLowerCase(),
+          ) === index,
+      );
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((product) => product.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function formatShopProducts(value?: string[] | string) {
+  const products = normalizeShopProducts(value);
+
+  return products.length ? products.join(", ") : "-";
 }
 
 function formatDate(value?: string) {
@@ -980,8 +1142,4 @@ function formatDate(value?: string) {
   }
 
   return new Date(value).toLocaleDateString("en-IN");
-}
-
-function csvCell(value: unknown) {
-  return `"${String(value ?? "").replace(/"/g, '""')}"`;
 }

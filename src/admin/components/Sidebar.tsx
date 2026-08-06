@@ -1,6 +1,7 @@
 import {
   ClipboardList,
   Factory,
+  History,
   IndianRupee,
   LayoutDashboard,
   LogOut,
@@ -65,6 +66,12 @@ export default function Sidebar() {
       label: "Users",
       icon: Users,
       roles: ["SUPER_ADMIN"],
+    },
+    {
+      to: "/admin/audit",
+      label: "Audit",
+      icon: History,
+      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN"],
     },
   ];
 
