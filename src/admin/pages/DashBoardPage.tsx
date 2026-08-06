@@ -9,6 +9,7 @@ import {
   IndianRupee,
   Package,
   Sprout,
+  Trophy,
   Users,
   Warehouse,
 } from "lucide-react";
@@ -70,11 +71,11 @@ export default function DashboardPage() {
         />
 
         <StatCard
-          label="Orders"
-          value={dashboard.totalOrders ?? 0}
+          label="Pending Balance"
+          value={`Rs. ${dashboard.totalPendingAmount ?? 0}`}
           icon={<ClipboardList size={20} />}
-          tone="blue"
-          helper="Customer demand"
+          tone="amber"
+          helper="Shop amount due"
         />
 
         <StatCard
@@ -86,13 +87,77 @@ export default function DashboardPage() {
         />
 
         <StatCard
-          label="Harvest Ready"
-          value={dashboard.lightRoomBags ?? 0}
-          icon={<Sprout size={20} />}
-          tone="amber"
-          helper="Bags in light room"
+          label="Top Today"
+          value={dashboard.dailyTopShop ?? "No sales yet"}
+          icon={<Trophy size={20} />}
+          tone="blue"
+          helper="Best shop today"
         />
       </div>
+
+      <Panel
+        title="Sales Focus"
+        subtitle="Top shops and outstanding balances from the sales ledger."
+      >
+        <div className="admin-stat-grid">
+          <StatCard
+            label="Today"
+            value={dashboard.dailyTopShop ?? "No sales yet"}
+            icon={<Trophy size={20} />}
+            tone="green"
+          />
+
+          <StatCard
+            label="This Week"
+            value={dashboard.weeklyTopShop ?? "No sales yet"}
+            icon={<Trophy size={20} />}
+            tone="blue"
+          />
+
+          <StatCard
+            label="This Month"
+            value={dashboard.monthlyTopShop ?? "No sales yet"}
+            icon={<Trophy size={20} />}
+            tone="violet"
+          />
+        </div>
+
+        {(dashboard.shopBalances || []).length === 0 && (
+          <EmptyState
+            title="No shop balances yet"
+            message="Balances will appear after sales are recorded."
+          />
+        )}
+
+        {(dashboard.shopBalances || []).length > 0 && (
+          <div className="sales-table-wrap">
+            <table className="admin-data-table">
+              <thead>
+                <tr>
+                  <th>Shop</th>
+                  <th>Category</th>
+                  <th>Total</th>
+                  <th>Collected</th>
+                  <th>Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(dashboard.shopBalances || []).map((shop: any) => (
+                  <tr key={shop.customerId}>
+                    <td>
+                      <strong>{shop.shopName}</strong>
+                    </td>
+                    <td>{shop.shopCategory || "Shop"}</td>
+                    <td>Rs. {shop.totalAmount ?? 0}</td>
+                    <td>Rs. {shop.collectedAmount ?? 0}</td>
+                    <td>Rs. {shop.pendingAmount ?? 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
 
       <Panel
         title="Inventory Status"

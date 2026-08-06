@@ -13,6 +13,7 @@ import HomePage from "./pages/Homepage";
 import HarvestPage from "./admin/pages/HarvestPage";
 import OrderPage from "./admin/pages/OrderPage";
 import SalesPage from "./admin/pages/SalesPage";
+import UserManagementPage from "./admin/pages/UserManagementPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import RoleBasedRoute from "./routes/RoleProtectedRoute";
 
@@ -28,7 +29,13 @@ export default function App() {
           path="/admin/dashboard"
           element={
             <RoleBasedRoute
-              allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "SALES_USER"]}
+              allowedRoles={[
+                "SUPER_ADMIN",
+                "FARM_MANAGER",
+                "SALES_ADMIN",
+                "SALES_EMPLOYEE",
+                "SALES_USER",
+              ]}
             >
               <DashboardPage />
             </RoleBasedRoute>
@@ -83,7 +90,13 @@ export default function App() {
           path="/admin/orders"
           element={
             <RoleBasedRoute
-              allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "SALES_USER"]}
+              allowedRoles={[
+                "SUPER_ADMIN",
+                "FARM_MANAGER",
+                "SALES_ADMIN",
+                "SALES_EMPLOYEE",
+                "SALES_USER",
+              ]}
             >
               <OrderPage />
             </RoleBasedRoute>
@@ -94,9 +107,24 @@ export default function App() {
           path="/admin/sales"
           element={
             <RoleBasedRoute
-              allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "SALES_USER"]}
+              allowedRoles={[
+                "SUPER_ADMIN",
+                "FARM_MANAGER",
+                "SALES_ADMIN",
+                "SALES_EMPLOYEE",
+                "SALES_USER",
+              ]}
             >
               <SalesPage />
+            </RoleBasedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/users"
+          element={
+            <RoleBasedRoute allowedRoles={["SUPER_ADMIN"]}>
+              <UserManagementPage />
             </RoleBasedRoute>
           }
         />
