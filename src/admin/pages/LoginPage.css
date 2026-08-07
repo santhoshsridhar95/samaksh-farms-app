@@ -82,7 +82,7 @@
 
 .login-mode-switch {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   margin-bottom: 18px;
   padding: 6px;
@@ -122,6 +122,28 @@
   margin-bottom: 18px;
 }
 
+.login-field-group {
+  margin-bottom: 18px;
+  text-align: left;
+}
+
+.login-field-group .field {
+  margin-bottom: 6px;
+}
+
+.field.field-invalid {
+  border: 2px solid #fca5a5;
+  box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.18);
+}
+
+.field-error {
+  display: block;
+  color: #fecaca;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .field input {
 
   flex: 1;
@@ -156,6 +178,24 @@
 
 .login-message-error {
   color: #ffb4b4;
+}
+
+.login-link-button {
+  display: block;
+  margin: -8px 0 18px auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #bbf7d0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.login-link-button:hover {
+  color: #ffffff;
+  text-decoration: underline;
 }
 
 .login-btn {

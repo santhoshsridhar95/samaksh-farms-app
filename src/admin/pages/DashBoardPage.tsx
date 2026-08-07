@@ -3,12 +3,16 @@ import { useEffect, useMemo, useState } from "react";
 import "./DashBoardPage.css";
 
 import {
+  Activity,
   AlertTriangle,
   Bug,
   ClipboardList,
   IndianRupee,
   Package,
+  PieChart,
   Sprout,
+  TrendingDown,
+  TrendingUp,
   Trophy,
   Users,
   Warehouse,
@@ -30,6 +34,7 @@ export default function DashboardPage() {
   const [dashboard, setDashboard] = useState<any>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [rankPeriod, setRankPeriod] = useState("day");
   const [rankLimit, setRankLimit] = useState("5");
   const [rankLocation, setRankLocation] = useState("ALL");
@@ -40,11 +45,12 @@ export default function DashboardPage() {
   }, []);
 
   const loadDashboard = async () => {
-    const [dashboardResponse, alertResponse, salesResponse] =
+    const [dashboardResponse, alertResponse, salesResponse, auditResponse] =
       await Promise.allSettled([
         api.get("/api/farm-dashboard"),
         api.get("/api/inventory-alerts"),
         api.get("/api/sales?size=1000"),
+        api.get("/api/audit"),
       ]);
 
     if (dashboardResponse.status === "fulfilled") {
@@ -66,6 +72,12 @@ export default function DashboardPage() {
     } else {
       console.error(salesResponse.reason);
       setSales([]);
+    }
+
+    if (auditResponse.status === "fulfilled") {
+      setAuditLogs(auditResponse.value?.data?.data || []);
+    } else {
+      setAuditLogs([]);
     }
   };
 
@@ -95,6 +107,13 @@ export default function DashboardPage() {
       }),
     [sales, rankPeriod, rankLocation, rankLimit, rankSort],
   );
+
+  const salesSimulation = useMemo(() => buildSalesSimulation(sales), [sales]);
+  const shopPieSegments = useMemo(
+    () => buildShopPieSegments(rankedShops.slice(0, 6)),
+    [rankedShops],
+  );
+  const auditDigest = useMemo(() => buildAuditDigest(auditLogs), [auditLogs]);
 
   if (!dashboard) {
     return (
@@ -283,6 +302,184 @@ export default function DashboardPage() {
                     <td>Rs. {shop.revenue}</td>
                     <td>Rs. {shop.collected}</td>
                     <td>Rs. {shop.pending}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+
+      <Panel
+        title="Sales Simulation"
+        subtitle="Day-to-day sales movement, today's shop changes, and shop contribution share."
+      >
+        <div className="dashboard-simulation-grid">
+          <article className="dashboard-chart-card">
+            <header>
+              <div>
+                <h3>Daily Sales Trend</h3>
+                <span>
+                  Today: Rs. {salesSimulation.todayRevenue} | Yesterday: Rs.{" "}
+                  {salesSimulation.yesterdayRevenue}
+                </span>
+              </div>
+              {salesSimulation.delta >= 0 ? (
+                <TrendingUp size={20} />
+              ) : (
+                <TrendingDown size={20} />
+              )}
+            </header>
+
+            <div className="dashboard-bar-chart" aria-label="Daily sales trend">
+              {salesSimulation.dailyTrend.map((day) => (
+                <div className="dashboard-bar-item" key={day.label}>
+                  <div className="dashboard-bar-track">
+                    <span style={{ height: `${day.percent}%` }} />
+                  </div>
+                  <small>{day.label}</small>
+                  <strong>Rs. {day.revenue}</strong>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className="dashboard-chart-card">
+            <header>
+              <div>
+                <h3>Shop Sales Share</h3>
+                <span>Top shops by selected sales focus filter</span>
+              </div>
+              <PieChart size={20} />
+            </header>
+
+            {shopPieSegments.length === 0 && (
+              <EmptyState
+                title="No shop share yet"
+                message="Sales share appears after delivery entries."
+              />
+            )}
+
+            {shopPieSegments.length > 0 && (
+              <div className="dashboard-pie-wrap">
+                <div
+                  className="dashboard-pie"
+                  style={{ background: pieGradient(shopPieSegments) }}
+                  aria-label="Shop sales share pie chart"
+                />
+                <div className="dashboard-pie-legend">
+                  {shopPieSegments.map((segment) => (
+                    <div key={segment.label}>
+                      <span style={{ background: segment.color }} />
+                      <strong>{segment.label}</strong>
+                      <small>{segment.percent.toFixed(1)}%</small>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </article>
+        </div>
+
+        <div className="dashboard-movers-grid">
+          <article className="dashboard-chart-card">
+            <header>
+              <div>
+                <h3>Increased Today</h3>
+                <span>Compared with yesterday</span>
+              </div>
+              <TrendingUp size={20} />
+            </header>
+            {salesSimulation.increased.length === 0 && (
+              <EmptyState title="No increases" message="No shop increased today." />
+            )}
+            {salesSimulation.increased.map((shop) => (
+              <div className="dashboard-mover dashboard-mover-up" key={shop.shopName}>
+                <strong>{shop.shopName}</strong>
+                <span>+Rs. {shop.delta}</span>
+              </div>
+            ))}
+          </article>
+
+          <article className="dashboard-chart-card">
+            <header>
+              <div>
+                <h3>Decreased Today</h3>
+                <span>Compared with yesterday</span>
+              </div>
+              <TrendingDown size={20} />
+            </header>
+            {salesSimulation.decreased.length === 0 && (
+              <EmptyState title="No decreases" message="No shop decreased today." />
+            )}
+            {salesSimulation.decreased.map((shop) => (
+              <div className="dashboard-mover dashboard-mover-down" key={shop.shopName}>
+                <strong>{shop.shopName}</strong>
+                <span>Rs. {shop.delta}</span>
+              </div>
+            ))}
+          </article>
+        </div>
+      </Panel>
+
+      <Panel
+        title="Today Audit Digest"
+        subtitle="Who delivered, created shops, approved users, changed roles, or granted access today."
+      >
+        <div className="admin-stat-grid">
+          <StatCard
+            label="Deliveries"
+            value={auditDigest.deliveryCount}
+            icon={<Activity size={20} />}
+            tone="green"
+            helper="Delivery entries today"
+          />
+          <StatCard
+            label="Shop Setup"
+            value={auditDigest.shopCount}
+            icon={<Users size={20} />}
+            tone="blue"
+            helper="Shop changes today"
+          />
+          <StatCard
+            label="Access Changes"
+            value={auditDigest.accessCount}
+            icon={<ClipboardList size={20} />}
+            tone="amber"
+            helper="Approvals, roles, entitlements"
+          />
+        </div>
+
+        {auditDigest.logs.length === 0 && (
+          <EmptyState
+            title="No audit actions today"
+            message="Today's tracked user actions will appear here."
+          />
+        )}
+
+        {auditDigest.logs.length > 0 && (
+          <div className="sales-table-wrap">
+            <table className="admin-data-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Person</th>
+                  <th>Action</th>
+                  <th>Reference</th>
+                  <th>Remarks</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditDigest.logs.slice(0, 12).map((log) => (
+                  <tr key={log.id}>
+                    <td>{formatTime(log.createdAt)}</td>
+                    <td>
+                      <strong>{log.userName || "System"}</strong>
+                      <span>{log.userEmail || "-"}</span>
+                    </td>
+                    <td>{formatAction(log.action)}</td>
+                    <td>{log.referenceId || "-"}</td>
+                    <td>{log.remarks || "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -540,4 +737,163 @@ function salePending(sale: any) {
   }
 
   return (Number(sale.totalAmount) || 0) - (Number(sale.amountCollected) || 0);
+}
+
+function buildSalesSimulation(sales: any[]) {
+  const todayKey = dateKey(new Date());
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = dateKey(yesterday);
+
+  const lastSevenDays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - index));
+    return date;
+  });
+
+  const revenueByDate = sales.reduce<Record<string, number>>((result, sale) => {
+    const key = sale.saleDate ? dateKey(new Date(sale.saleDate)) : "";
+
+    if (!key) {
+      return result;
+    }
+
+    result[key] = (result[key] || 0) + (Number(sale.totalAmount) || 0);
+    return result;
+  }, {});
+
+  const maxRevenue = Math.max(
+    1,
+    ...lastSevenDays.map((date) => revenueByDate[dateKey(date)] || 0),
+  );
+
+  const dailyTrend = lastSevenDays.map((date) => {
+    const revenue = Math.round(revenueByDate[dateKey(date)] || 0);
+
+    return {
+      label: date.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+      }),
+      revenue,
+      percent: Math.max(4, (revenue / maxRevenue) * 100),
+    };
+  });
+
+  const todayByShop = salesByShopForDate(sales, todayKey);
+  const yesterdayByShop = salesByShopForDate(sales, yesterdayKey);
+
+  const movers = Array.from(
+    new Set([...Object.keys(todayByShop), ...Object.keys(yesterdayByShop)]),
+  )
+    .map((shopName) => ({
+      shopName,
+      today: todayByShop[shopName] || 0,
+      yesterday: yesterdayByShop[shopName] || 0,
+      delta: Math.round((todayByShop[shopName] || 0) - (yesterdayByShop[shopName] || 0)),
+    }))
+    .filter((shop) => shop.delta !== 0);
+
+  return {
+    todayRevenue: Math.round(revenueByDate[todayKey] || 0),
+    yesterdayRevenue: Math.round(revenueByDate[yesterdayKey] || 0),
+    delta: Math.round((revenueByDate[todayKey] || 0) - (revenueByDate[yesterdayKey] || 0)),
+    dailyTrend,
+    increased: movers
+      .filter((shop) => shop.delta > 0)
+      .sort((first, second) => second.delta - first.delta)
+      .slice(0, 5),
+    decreased: movers
+      .filter((shop) => shop.delta < 0)
+      .sort((first, second) => first.delta - second.delta)
+      .slice(0, 5),
+  };
+}
+
+function salesByShopForDate(sales: any[], key: string) {
+  return sales.reduce<Record<string, number>>((result, sale) => {
+    const saleKey = sale.saleDate ? dateKey(new Date(sale.saleDate)) : "";
+
+    if (saleKey !== key) {
+      return result;
+    }
+
+    const shopName = sale.customerName || "Unknown";
+    result[shopName] = (result[shopName] || 0) + (Number(sale.totalAmount) || 0);
+    return result;
+  }, {});
+}
+
+function buildShopPieSegments(shops: any[]) {
+  const colors = ["#166534", "#2563eb", "#f59e0b", "#7c3aed", "#dc2626", "#0891b2"];
+  const total = shops.reduce(
+    (sum, shop) => sum + (Number(shop.revenue) || 0),
+    0,
+  );
+
+  if (!total) {
+    return [];
+  }
+
+  return shops.map((shop, index) => ({
+    label: shop.shopName || "Unknown",
+    value: Number(shop.revenue) || 0,
+    percent: ((Number(shop.revenue) || 0) / total) * 100,
+    color: colors[index % colors.length],
+  }));
+}
+
+function pieGradient(segments: any[]) {
+  let cursor = 0;
+  const parts = segments.map((segment) => {
+    const start = cursor;
+    cursor += segment.percent;
+    return `${segment.color} ${start}% ${cursor}%`;
+  });
+
+  return `conic-gradient(${parts.join(", ")})`;
+}
+
+function buildAuditDigest(logs: any[]) {
+  const today = dateKey(new Date());
+  const todaysLogs = logs
+    .filter((log) => log.createdAt && dateKey(new Date(log.createdAt)) === today)
+    .sort(
+      (first, second) =>
+        new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime(),
+    );
+
+  return {
+    logs: todaysLogs,
+    deliveryCount: todaysLogs.filter((log) => log.action === "CREATE_SALE").length,
+    shopCount: todaysLogs.filter((log) => log.module === "CUSTOMER").length,
+    accessCount: todaysLogs.filter((log) =>
+      ["APPROVE_USER", "REJECT_USER", "CHANGE_ROLE", "CHANGE_ENTITLEMENTS", "RESET_PASSWORD"].includes(
+        log.action,
+      ),
+    ).length,
+  };
+}
+
+function dateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function formatTime(value?: string) {
+  if (!value) {
+    return "-";
+  }
+
+  return new Date(value).toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatAction(value?: string) {
+  return String(value || "-")
+    .toLowerCase()
+    .split("_")
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(" ");
 }

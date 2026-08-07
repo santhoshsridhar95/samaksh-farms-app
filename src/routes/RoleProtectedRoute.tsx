@@ -1,6 +1,8 @@
 // src/routes/RoleBasedRoute.tsx
 
 import { Navigate } from "react-router-dom";
+import { AUTH_CONFIG } from "../config/authConfig";
+import { getActiveSession } from "./authSession";
 
 type Props = {
   children: React.ReactNode;
@@ -12,17 +14,13 @@ export default function RoleBasedRoute({
   allowedRoles
 }: Props) {
 
-  const token =
-    localStorage.getItem("token");
-
-  const role =
-    localStorage.getItem("role");
+  const { token, role } = getActiveSession();
 
   if (!token) {
 
     return (
       <Navigate
-        to="/login"
+        to={AUTH_CONFIG.loginPath}
         replace
       />
     );
@@ -35,7 +33,7 @@ export default function RoleBasedRoute({
 
     return (
       <Navigate
-        to="/admin/dashboard"
+        to={AUTH_CONFIG.defaultAdminPage}
         replace
       />
     );

@@ -33,6 +33,7 @@ export default function UserManagementPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({});
+  const [pendingRoles, setPendingRoles] = useState<Record<string, string>>({});
   const [userToDelete, setUserToDelete] = useState<any>(null);
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export default function UserManagementPage() {
   const loadUsers = async () => {
     const response = await api.get("/api/users");
     setUsers(response?.data?.data || []);
+    setPendingRoles({});
   };
 
   const createUser = async () => {
@@ -57,7 +59,7 @@ export default function UserManagementPage() {
 
   const approveUser = async (user: any) => {
     await api.put(`/api/users/${user.id}/approve`, {
-      role: user.role || "SALES_EMPLOYEE",
+      role: pendingRoles[String(user.id)] || user.role || "SALES_EMPLOYEE",
       active: true,
     });
     loadUsers();
@@ -192,8 +194,13 @@ export default function UserManagementPage() {
                     <td>{user.phoneNumber || "-"}</td>
                     <td>
                       <select
-                        value={user.role}
-                        onChange={(event) => changeRole(user.id, event.target.value)}
+                        value={pendingRoles[String(user.id)] ?? user.role}
+                        onChange={(event) =>
+                          setPendingRoles((current) => ({
+                            ...current,
+                            [String(user.id)]: event.target.value,
+                          }))
+                        }
                       >
                         {roles.map((role) => (
                           <option key={role} value={role}>
@@ -201,6 +208,40 @@ export default function UserManagementPage() {
                           </option>
                         ))}
                       </select>
+                      {pendingRoles[String(user.id)] &&
+                        pendingRoles[String(user.id)] !== user.role && (
+                          <div className="admin-inline-save">
+                            <span>
+                              Pending:{" "}
+                              {formatRole(pendingRoles[String(user.id)])}
+                            </span>
+                            <button
+                              className="admin-button admin-button-secondary"
+                              type="button"
+                              onClick={() =>
+                                setPendingRoles((current) => {
+                                  const next = { ...current };
+                                  delete next[String(user.id)];
+                                  return next;
+                                })
+                              }
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              className="admin-button"
+                              type="button"
+                              onClick={() =>
+                                changeRole(
+                                  user.id,
+                                  pendingRoles[String(user.id)],
+                                )
+                              }
+                            >
+                              Save Role
+                            </button>
+                          </div>
+                        )}
                     </td>
                     <td>
                       <StatusPill status={user.active ? "ACTIVE" : "INACTIVE"} />
@@ -234,20 +275,22 @@ export default function UserManagementPage() {
                     <td>
                       <div className="admin-row-actions">
                         <button
-                          className="admin-icon-button"
+                          className="admin-action-button admin-action-approve"
                           type="button"
                           title="Approve user"
                           onClick={() => approveUser(user)}
                         >
                           <CheckCircle2 size={16} />
+                          Approve
                         </button>
                         <button
-                          className="admin-icon-button"
+                          className="admin-action-button admin-action-reject"
                           type="button"
                           title="Reject user"
                           onClick={() => rejectUser(user.id)}
                         >
                           <XCircle size={16} />
+                          Reject
                         </button>
                         <button
                           className="admin-icon-button admin-icon-danger"
