@@ -9,5 +9,6 @@ export const AUTH_CONFIG = {
   defaultAdminPage:
     "/admin/dashboard",
 
-  sessionTimeoutMinutes: 60
+  sessionTimeoutMinutes:
+    Number(import.meta.env.VITE_SESSION_TIMEOUT_MINUTES || 60)
 };

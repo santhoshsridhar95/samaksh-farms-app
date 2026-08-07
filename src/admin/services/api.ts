@@ -1,5 +1,7 @@
 import axios from "axios";
 import { API_BASE_URL } from "../../config/api";
+import { AUTH_CONFIG } from "../../config/authConfig";
+import { clearSession, getActiveSession } from "../../routes/authSession";
 
 const api = axios.create({
   baseURL: API_BASE_URL
@@ -7,7 +9,11 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
 
-  const token = localStorage.getItem("token");
+  if (isAuthEndpoint(config.url)) {
+    return config;
+  }
+
+  const { token } = getActiveSession();
 
   if (token) {
     config.headers.Authorization =
@@ -21,15 +27,22 @@ api.interceptors.response.use(
   response => response,
   error => {
 
-    if (error.response?.status === 401) {
+    if (
+      error.response?.status === 401 &&
+      !isAuthEndpoint(error.config?.url)
+    ) {
 
-      localStorage.removeItem("token");
+      clearSession();
 
-      window.location.href = "/login";
+      window.location.href = AUTH_CONFIG.loginPath;
     }
 
     return Promise.reject(error);
   }
 );
+
+function isAuthEndpoint(url?: string) {
+  return Boolean(url?.includes("/api/auth/"));
+}
 
 export default api;

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import api from "../services/api";
+import { markSessionStarted } from "../../routes/authSession";
 
 import { Eye, EyeOff, Loader2, Lock, Mail, Phone, User } from "lucide-react";
 
@@ -7,6 +8,7 @@ import "./LoginPage.css";
 import logo from "../../../public/Samaksh_Mushroom_Icon.png";
 
 type LoginMode = "login" | "signup" | "forgot";
+type FieldErrors = Partial<Record<"name" | "loginId" | "phoneNumber" | "password", string>>;
 
 export default function LoginPage({
   initialMode = "login",
@@ -22,35 +24,44 @@ export default function LoginPage({
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"error" | "success">("error");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const validate = () => {
+    const nextErrors: FieldErrors = {};
+
     if (mode === "signup" && !name.trim()) {
-      showMessage("Name is required", "error");
-      return false;
+      nextErrors.name = "Name is required";
     }
 
     if (!loginId.trim()) {
-      showMessage(mode === "login" ? "Email or phone is required" : "Email is required", "error");
-      return false;
+      nextErrors.loginId =
+        mode === "login" ? "Email or phone is required" : "Email is required";
     }
 
     if (mode === "signup" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginId)) {
-      showMessage("Enter a valid email", "error");
-      return false;
+      nextErrors.loginId = "Enter a valid email";
     }
 
     if (mode === "signup" && !phoneNumber.trim()) {
-      showMessage("Phone number is required", "error");
-      return false;
+      nextErrors.phoneNumber = "Phone number is required";
     }
 
     if (mode === "signup" && !/^[0-9]{10}$/.test(phoneNumber.trim())) {
-      showMessage("Phone number must be exactly 10 digits", "error");
-      return false;
+      nextErrors.phoneNumber = "Phone number must be exactly 10 digits";
     }
 
-    if (mode !== "forgot" && password.trim().length < 8) {
-      showMessage("Password must be at least 8 characters", "error");
+    if (mode === "login" && !password.trim()) {
+      nextErrors.password = "Password is required";
+    }
+
+    if (mode === "signup" && password.trim().length < 8) {
+      nextErrors.password = "Password must be at least 8 characters";
+    }
+
+    setFieldErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      setMessage("");
       return false;
     }
 
@@ -99,14 +110,38 @@ export default function LoginPage({
 
       const data = response.data;
 
+      if (!data?.token || !data?.role) {
+        showMessage("Login response is missing session details", "error");
+        return;
+      }
+
       localStorage.setItem("token", data.token);
       localStorage.setItem("role", data.role);
       localStorage.setItem("userName", data.name);
       localStorage.setItem("userId", String(data.userId));
+      markSessionStarted();
 
       window.location.href = "/admin/dashboard";
     } catch (error: any) {
-      showMessage(error?.response?.data?.message || "Unable to complete request", "error");
+      const responseData = error?.response?.data;
+      const backendErrors = responseData?.data;
+
+      if (backendErrors && typeof backendErrors === "object") {
+        setFieldErrors(mapBackendErrors(backendErrors));
+        setMessage("");
+        return;
+      }
+
+      const errorMessage = responseData?.message || "Unable to complete request";
+      const fieldError = fieldErrorForMessage(errorMessage);
+
+      if (fieldError) {
+        setFieldErrors(fieldError);
+        setMessage("");
+        return;
+      }
+
+      showMessage(errorMessage, "error");
     } finally {
       setLoading(false);
     }
@@ -121,6 +156,39 @@ export default function LoginPage({
     setMode(nextMode);
     setMessage("");
     setPassword("");
+    setFieldErrors({});
+  };
+
+  const updateName = (value: string) => {
+    setName(value);
+    clearFieldError("name");
+  };
+
+  const updateLoginId = (value: string) => {
+    setLoginId(value);
+    clearFieldError("loginId");
+  };
+
+  const updatePhoneNumber = (value: string) => {
+    setPhoneNumber(value);
+    clearFieldError("phoneNumber");
+  };
+
+  const updatePassword = (value: string) => {
+    setPassword(value);
+    clearFieldError("password");
+  };
+
+  const clearFieldError = (field: keyof FieldErrors) => {
+    setFieldErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
   };
 
   return (
@@ -147,82 +215,111 @@ export default function LoginPage({
           >
             Sign Up
           </button>
-          <button
-            type="button"
-            className={mode === "forgot" ? "is-active" : ""}
-            onClick={() => switchMode("forgot")}
-          >
-            Forgot
-          </button>
         </div>
 
         {mode === "signup" && (
-          <div className="field">
-            <User size={18} />
-            <input
-              placeholder="Full name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
+          <div className="login-field-group">
+            <div className={`field ${fieldErrors.name ? "field-invalid" : ""}`}>
+              <User size={18} />
+              <input
+                aria-invalid={Boolean(fieldErrors.name)}
+                placeholder="Full name"
+                value={name}
+                onChange={(event) => updateName(event.target.value)}
+              />
+            </div>
+            {fieldErrors.name && (
+              <span className="field-error">{fieldErrors.name}</span>
+            )}
           </div>
         )}
 
-        <div className="field">
-          <Mail size={18} />
-          <input
-            type={mode === "signup" ? "email" : "text"}
-            placeholder={mode === "signup" ? "Email address" : "Email or phone"}
-            value={loginId}
-            onChange={(event) => setLoginId(event.target.value)}
-          />
+        <div className="login-field-group">
+          <div className={`field ${fieldErrors.loginId ? "field-invalid" : ""}`}>
+            <Mail size={18} />
+            <input
+              aria-invalid={Boolean(fieldErrors.loginId)}
+              type={mode === "signup" ? "email" : "text"}
+              placeholder={mode === "signup" ? "Email address" : "Email or phone"}
+              value={loginId}
+              onChange={(event) => updateLoginId(event.target.value)}
+            />
+          </div>
+          {fieldErrors.loginId && (
+            <span className="field-error">{fieldErrors.loginId}</span>
+          )}
         </div>
 
         {mode === "signup" && (
-          <div className="field">
-            <Phone size={18} />
-            <input
-              inputMode="numeric"
-              maxLength={10}
-              placeholder="Phone number"
-              value={phoneNumber}
-              onChange={(event) =>
-                setPhoneNumber(
-                  event.target.value.replace(/\D/g, "").slice(0, 10),
-                )
-              }
-            />
+          <div className="login-field-group">
+            <div className={`field ${fieldErrors.phoneNumber ? "field-invalid" : ""}`}>
+              <Phone size={18} />
+              <input
+                aria-invalid={Boolean(fieldErrors.phoneNumber)}
+                inputMode="numeric"
+                maxLength={10}
+                placeholder="Phone number"
+                value={phoneNumber}
+                onChange={(event) =>
+                  updatePhoneNumber(
+                    event.target.value.replace(/\D/g, "").slice(0, 10),
+                  )
+                }
+              />
+            </div>
+            {fieldErrors.phoneNumber && (
+              <span className="field-error">{fieldErrors.phoneNumber}</span>
+            )}
           </div>
         )}
 
         {mode !== "forgot" && (
-          <div className="field">
-            <Lock size={18} />
-            <input
-              type={showPassword ? "text" : "password"}
-              placeholder="Password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  submit();
-                }
-              }}
-            />
+          <>
+            <div className="login-field-group">
+              <div className={`field ${fieldErrors.password ? "field-invalid" : ""}`}>
+                <Lock size={18} />
+                <input
+                  aria-invalid={Boolean(fieldErrors.password)}
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  value={password}
+                  onChange={(event) => updatePassword(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      submit();
+                    }
+                  }}
+                />
 
-            {showPassword ? (
-              <EyeOff
-                size={18}
-                onClick={() => setShowPassword(false)}
-                className="eye"
-              />
-            ) : (
-              <Eye
-                size={18}
-                onClick={() => setShowPassword(true)}
-                className="eye"
-              />
+                {showPassword ? (
+                  <EyeOff
+                    size={18}
+                    onClick={() => setShowPassword(false)}
+                    className="eye"
+                  />
+                ) : (
+                  <Eye
+                    size={18}
+                    onClick={() => setShowPassword(true)}
+                    className="eye"
+                  />
+                )}
+              </div>
+              {fieldErrors.password && (
+                <span className="field-error">{fieldErrors.password}</span>
+              )}
+            </div>
+
+            {mode === "login" && (
+              <button
+                className="login-link-button"
+                type="button"
+                onClick={() => switchMode("forgot")}
+              >
+                Forgot password?
+              </button>
             )}
-          </div>
+          </>
         )}
 
         {message && <div className={`login-message login-message-${messageTone}`}>{message}</div>}
@@ -246,4 +343,44 @@ export default function LoginPage({
       </div>
     </div>
   );
+}
+
+function mapBackendErrors(errors: Record<string, string>) {
+  const nextErrors: FieldErrors = {};
+
+  if (errors.name) {
+    nextErrors.name = errors.name;
+  }
+
+  if (errors.email || errors.login) {
+    nextErrors.loginId = errors.email || errors.login;
+  }
+
+  if (errors.phoneNumber) {
+    nextErrors.phoneNumber = errors.phoneNumber;
+  }
+
+  if (errors.password) {
+    nextErrors.password = errors.password;
+  }
+
+  return nextErrors;
+}
+
+function fieldErrorForMessage(message: string): FieldErrors | null {
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("email")) {
+    return { loginId: message };
+  }
+
+  if (normalized.includes("phone")) {
+    return { phoneNumber: message };
+  }
+
+  if (normalized.includes("password")) {
+    return { password: message };
+  }
+
+  return null;
 }

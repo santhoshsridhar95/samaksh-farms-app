@@ -5,6 +5,7 @@ import {
 import {
   AUTH_CONFIG
 } from "../config/authConfig";
+import { getActiveSession } from "./authSession";
 
 interface Props {
   children: React.ReactNode;
@@ -14,10 +15,7 @@ export default function ProtectedRoute({
   children
 }: Props) {
 
-  const token =
-    localStorage.getItem(
-      AUTH_CONFIG.tokenKey
-    );
+  const { token } = getActiveSession();
 
   if (!token) {
 

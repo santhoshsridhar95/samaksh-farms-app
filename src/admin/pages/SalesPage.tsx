@@ -133,8 +133,14 @@ export default function SalesPage() {
     [sales, saleForm.customerId],
   );
 
-  const totalAmount =
+  const grossAmount =
     (Number(saleForm.quantity) || 0) * (Number(saleForm.unitPrice) || 0);
+  const exchangeCredit = calculateExchangeCredit(
+    saleForm.exchangeType,
+    Number(saleForm.exchangeBoxes) || 0,
+    Number(saleForm.unitPrice) || 0,
+  );
+  const totalAmount = Math.max(0, grossAmount - exchangeCredit);
   const amountCollected = Number(saleForm.amountCollected) || 0;
   const pendingForThisSale = totalAmount - amountCollected;
   const balanceAfterCollection = selectedShopBalance + pendingForThisSale;
@@ -333,7 +339,7 @@ export default function SalesPage() {
       ),
       exchangeType: latestSale?.exchangeType || shop?.exchangeType || "NONE",
       exchangeBoxes: "0",
-      returnedBoxes: String(latestSale?.returnedBoxes ?? shop?.dailyReturnedBoxes ?? "0"),
+      returnedBoxes: "0",
       amountCollected: "",
       remarks: "",
     }));
@@ -709,7 +715,15 @@ export default function SalesPage() {
             />
           </Field>
 
-          <Field label="Total Amount">
+          <Field label="Gross Amount">
+            <input value={grossAmount} readOnly />
+          </Field>
+
+          <Field label="Exchange Credit">
+            <input value={exchangeCredit} readOnly />
+          </Field>
+
+          <Field label="Billable Amount">
             <input value={totalAmount} readOnly />
           </Field>
 
@@ -762,15 +776,10 @@ export default function SalesPage() {
             />
           </Field>
 
-          <Field label="Returned Boxes">
-            <input
-              type="number"
-              value={saleForm.returnedBoxes}
-              onChange={(event) =>
-                updateSaleField("returnedBoxes", event.target.value)
-              }
-            />
-          </Field>
+          <div className="sales-exchange-note">
+            1 on 1 deducts full unit price per exchange box. 2 on 1 deducts
+            half unit price per exchange box.
+          </div>
 
           <Field label="Remarks">
             <input
@@ -1101,6 +1110,26 @@ function calculateShopBalance(sales: any[], customerId: number) {
   return sales
     .filter((sale) => Number(sale.customerId) === Number(customerId))
     .reduce((total, sale) => total + salePending(sale), 0);
+}
+
+function calculateExchangeCredit(
+  exchangeType: string,
+  exchangeBoxes: number,
+  unitPrice: number,
+) {
+  if (exchangeBoxes <= 0 || unitPrice <= 0) {
+    return 0;
+  }
+
+  if (exchangeType === "ONE_ON_ONE") {
+    return exchangeBoxes * unitPrice;
+  }
+
+  if (exchangeType === "TWO_ON_ONE") {
+    return exchangeBoxes * unitPrice * 0.5;
+  }
+
+  return 0;
 }
 
 function formatExchange(value?: string) {

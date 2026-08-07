@@ -1,13 +1,37 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Bell, Search, UserCircle } from "lucide-react";
 
 import Sidebar from "./Sidebar";
+import api from "../services/api";
 
 type Props = {
   children: ReactNode;
 };
 
 export default function AdminLayout({ children }: Props) {
+  const userName = localStorage.getItem("userName") || "User";
+  const role = localStorage.getItem("role") || "User";
+  const [permissions, setPermissions] = useState<string[]>([]);
+
+  useEffect(() => {
+    loadEntitlements();
+  }, []);
+
+  const loadEntitlements = async () => {
+    try {
+      const response = await api.get("/api/entitlements/me");
+      setPermissions(response?.data?.data?.permissions || []);
+    } catch (error) {
+      console.error(error);
+      setPermissions([]);
+    }
+  };
+
+  const entitlementText =
+    permissions.length > 0
+      ? permissions.map(formatPermission).join(", ")
+      : formatRole(role);
+
   return (
     <div className="admin-shell">
       <Sidebar />
@@ -27,8 +51,8 @@ export default function AdminLayout({ children }: Props) {
             <div className="admin-user-chip">
               <UserCircle size={22} />
               <div>
-                <strong>Admin</strong>
-                <span>Operations</span>
+                <strong>{userName}</strong>
+                <span title={entitlementText}>{entitlementText}</span>
               </div>
             </div>
           </div>
@@ -40,4 +64,22 @@ export default function AdminLayout({ children }: Props) {
       </main>
     </div>
   );
+}
+
+function formatPermission(permission: string) {
+  return permission
+    .replace(/\./g, " ")
+    .replace(/_/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatRole(role: string) {
+  return role
+    .toLowerCase()
+    .split("_")
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(" ");
 }
