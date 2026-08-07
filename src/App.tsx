@@ -15,6 +15,7 @@ import OrderPage from "./admin/pages/OrderPage";
 import SalesPage from "./admin/pages/SalesPage";
 import UserManagementPage from "./admin/pages/UserManagementPage";
 import AuditTrailPage from "./admin/pages/AuditTrailPage";
+import VerifyEmailPage from "./admin/pages/VerifyEmailPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import RoleBasedRoute from "./routes/RoleProtectedRoute";
 
@@ -32,6 +33,8 @@ export default function App() {
           path="/forgot-password"
           element={<LoginPage initialMode="forgot" />}
         />
+
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
 
         <Route
           path="/admin/dashboard"
