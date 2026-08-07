@@ -105,6 +105,13 @@
   color: #14532d;
 }
 
+.google-login-wrap {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+  margin-bottom: 18px;
+}
+
 .field {
 
   display: flex;
@@ -162,6 +169,9 @@
 
 .error,
 .login-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 
   color: #ffb4b4;
 
@@ -227,6 +237,7 @@
   gap: 10px;
 
   transition: .3s;
+  text-decoration: none;
 }
 
 .login-btn:hover {
