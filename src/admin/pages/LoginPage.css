@@ -80,6 +80,31 @@
   margin-bottom: 30px;
 }
 
+.login-mode-switch {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 18px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.login-mode-switch button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.login-mode-switch button.is-active {
+  background: white;
+  color: #14532d;
+}
+
 .field {
 
   display: flex;
@@ -113,7 +138,8 @@
   cursor: pointer;
 }
 
-.error {
+.error,
+.login-message {
 
   color: #ffb4b4;
 
@@ -122,6 +148,14 @@
   margin-bottom: 15px;
 
   text-align: left;
+}
+
+.login-message-success {
+  color: #bbf7d0;
+}
+
+.login-message-error {
+  color: #ffb4b4;
 }
 
 .login-btn {

@@ -1,12 +1,14 @@
 import {
   ClipboardList,
   Factory,
+  History,
   IndianRupee,
   LayoutDashboard,
   LogOut,
   Package,
   Repeat2,
   Sprout,
+  Users,
 } from "lucide-react";
 
 import { NavLink, useNavigate } from "react-router-dom";
@@ -21,7 +23,7 @@ export default function Sidebar() {
       to: "/admin/dashboard",
       label: "Dashboard",
       icon: LayoutDashboard,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_USER"],
+      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN", "SALES_EMPLOYEE", "SALES_USER"],
     },
     {
       to: "/admin/inventory",
@@ -51,13 +53,25 @@ export default function Sidebar() {
       to: "/admin/orders",
       label: "Orders",
       icon: ClipboardList,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_USER"],
+      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN", "SALES_EMPLOYEE", "SALES_USER"],
     },
     {
       to: "/admin/sales",
       label: "Sales",
       icon: IndianRupee,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_USER"],
+      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN", "SALES_EMPLOYEE", "SALES_USER"],
+    },
+    {
+      to: "/admin/users",
+      label: "Users",
+      icon: Users,
+      roles: ["SUPER_ADMIN"],
+    },
+    {
+      to: "/admin/audit",
+      label: "Audit",
+      icon: History,
+      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN"],
     },
   ];
 

@@ -13,6 +13,8 @@ import HomePage from "./pages/Homepage";
 import HarvestPage from "./admin/pages/HarvestPage";
 import OrderPage from "./admin/pages/OrderPage";
 import SalesPage from "./admin/pages/SalesPage";
+import UserManagementPage from "./admin/pages/UserManagementPage";
+import AuditTrailPage from "./admin/pages/AuditTrailPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import RoleBasedRoute from "./routes/RoleProtectedRoute";
 
@@ -24,11 +26,24 @@ export default function App() {
 
         <Route path="/login" element={<LoginPage />} />
 
+        <Route path="/signup" element={<LoginPage initialMode="signup" />} />
+
+        <Route
+          path="/forgot-password"
+          element={<LoginPage initialMode="forgot" />}
+        />
+
         <Route
           path="/admin/dashboard"
           element={
             <RoleBasedRoute
-              allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "SALES_USER"]}
+              allowedRoles={[
+                "SUPER_ADMIN",
+                "FARM_MANAGER",
+                "SALES_ADMIN",
+                "SALES_EMPLOYEE",
+                "SALES_USER",
+              ]}
             >
               <DashboardPage />
             </RoleBasedRoute>
@@ -83,7 +98,13 @@ export default function App() {
           path="/admin/orders"
           element={
             <RoleBasedRoute
-              allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "SALES_USER"]}
+              allowedRoles={[
+                "SUPER_ADMIN",
+                "FARM_MANAGER",
+                "SALES_ADMIN",
+                "SALES_EMPLOYEE",
+                "SALES_USER",
+              ]}
             >
               <OrderPage />
             </RoleBasedRoute>
@@ -94,9 +115,33 @@ export default function App() {
           path="/admin/sales"
           element={
             <RoleBasedRoute
-              allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "SALES_USER"]}
+              allowedRoles={[
+                "SUPER_ADMIN",
+                "FARM_MANAGER",
+                "SALES_ADMIN",
+                "SALES_EMPLOYEE",
+                "SALES_USER",
+              ]}
             >
               <SalesPage />
+            </RoleBasedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/users"
+          element={
+            <RoleBasedRoute allowedRoles={["SUPER_ADMIN"]}>
+              <UserManagementPage />
+            </RoleBasedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/audit"
+          element={
+            <RoleBasedRoute allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN"]}>
+              <AuditTrailPage />
             </RoleBasedRoute>
           }
         />
