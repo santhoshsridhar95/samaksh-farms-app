@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Download,
   AlertTriangle,
+  Boxes,
+  Calculator,
   IndianRupee,
   Pencil,
   Receipt,
@@ -22,7 +24,10 @@ import {
   StatusPill,
 } from "../components/AdminUI";
 import api from "../services/api";
-import { downloadSalesWorkbook } from "../utils/excelExport";
+import {
+  downloadBoxAllocationWorkbook,
+  downloadSalesWorkbook,
+} from "../utils/excelExport";
 
 const exchangeTypes = [
   { value: "NONE", label: "None" },
@@ -71,6 +76,16 @@ const emptySaleForm = {
 
 type ShopForm = typeof emptyShopForm;
 type SaleForm = typeof emptySaleForm;
+type BoxAllocation = {
+  shopId: number | string;
+  shopName: string;
+  category: string;
+  location: string;
+  dailyRequirement: number;
+  allocatedBoxes: number;
+  shortageBoxes: number;
+  surplusBoxes: number;
+};
 
 export default function SalesPage() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -85,6 +100,10 @@ export default function SalesPage() {
   const [historyPage, setHistoryPage] = useState(0);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [shopToDelete, setShopToDelete] = useState<any>(null);
+  const [paymentSale, setPaymentSale] = useState<any>(null);
+  const [paymentReceived, setPaymentReceived] = useState("");
+  const [paymentRemarks, setPaymentRemarks] = useState("");
+  const [allocationBoxCount, setAllocationBoxCount] = useState("100");
   const [shopForm, setShopForm] = useState<ShopForm>(emptyShopForm);
   const [saleForm, setSaleForm] = useState<SaleForm>(emptySaleForm);
 
@@ -115,6 +134,9 @@ export default function SalesPage() {
       setProducts(productResponse.data.data || []);
       setSales(salesResponse?.data?.data?.content || []);
       setPermissions(entitlementResponse?.data?.data?.permissions || []);
+      setPaymentSale(null);
+      setPaymentReceived("");
+      setPaymentRemarks("");
     } catch (error) {
       console.error(error);
     }
@@ -141,9 +163,20 @@ export default function SalesPage() {
     Number(saleForm.unitPrice) || 0,
   );
   const totalAmount = Math.max(0, grossAmount - exchangeCredit);
-  const amountCollected = Number(saleForm.amountCollected) || 0;
-  const pendingForThisSale = totalAmount - amountCollected;
-  const balanceAfterCollection = selectedShopBalance + pendingForThisSale;
+  const amountReceivedToday = Number(saleForm.amountCollected) || 0;
+  const amountAppliedToOldBalance = Math.min(
+    selectedShopBalance,
+    amountReceivedToday,
+  );
+  const amountAppliedToThisSale = Math.min(
+    totalAmount,
+    Math.max(0, amountReceivedToday - amountAppliedToOldBalance),
+  );
+  const pendingForThisSale = totalAmount - amountAppliedToThisSale;
+  const balanceAfterCollection = Math.max(
+    0,
+    selectedShopBalance + totalAmount - amountReceivedToday,
+  );
 
   const filteredShops = customers.filter((customer) => {
     const searchable = [
@@ -180,9 +213,37 @@ export default function SalesPage() {
     }),
     { boxes: 0, amount: 0, pending: 0 },
   );
+  const allocationTotalBoxes = Math.max(
+    0,
+    Math.floor(Number(allocationBoxCount) || 0),
+  );
+  const boxAllocation = useMemo(
+    () => buildBoxAllocation(customers, allocationTotalBoxes),
+    [customers, allocationTotalBoxes],
+  );
+  const allocationTotals = useMemo(
+    () =>
+      boxAllocation.reduce(
+        (total, allocation) => ({
+          dailyRequirement:
+            total.dailyRequirement + allocation.dailyRequirement,
+          allocatedBoxes: total.allocatedBoxes + allocation.allocatedBoxes,
+          shortageBoxes: total.shortageBoxes + allocation.shortageBoxes,
+          surplusBoxes: total.surplusBoxes + allocation.surplusBoxes,
+        }),
+        {
+          dailyRequirement: 0,
+          allocatedBoxes: 0,
+          shortageBoxes: 0,
+          surplusBoxes: 0,
+        },
+      ),
+    [boxAllocation],
+  );
 
   const tabs = [
     canCreateDelivery && { id: "delivery", label: "Delivery Entry" },
+    canCreateDelivery && { id: "allocation", label: "Box Allocation" },
     canManageShops && { id: "shops", label: "Shop Setup" },
     canViewLedger && { id: "ledger", label: "Sales Ledger" },
     canViewLedger && { id: "history", label: "Shop History" },
@@ -353,6 +414,11 @@ export default function SalesPage() {
 
   const createSale = async () => {
     try {
+      if (amountReceivedToday > selectedShopBalance + totalAmount) {
+        alert("Amount received cannot be greater than current balance plus today's bill");
+        return;
+      }
+
       await api.post("/api/sales", {
         customerId: Number(saleForm.customerId),
         productId: Number(saleForm.productId || products[0]?.id),
@@ -378,6 +444,64 @@ export default function SalesPage() {
 
   const downloadSalesCsv = () => {
     downloadSalesWorkbook(customers, sales);
+  };
+
+  const downloadBoxAllocation = () => {
+    if (boxAllocation.length === 0) {
+      alert("Create active shops with daily boxes before downloading allocation");
+      return;
+    }
+
+    downloadBoxAllocationWorkbook(boxAllocation, allocationTotalBoxes);
+  };
+
+  const openPaymentEditor = (sale: any) => {
+    setPaymentSale(sale);
+    setPaymentReceived("");
+    setPaymentRemarks("");
+  };
+
+  const closePaymentEditor = () => {
+    setPaymentSale(null);
+    setPaymentReceived("");
+    setPaymentRemarks("");
+  };
+
+  const savePayment = async (markPaid = false) => {
+    if (!paymentSale) {
+      return;
+    }
+
+    const currentCollected = Number(paymentSale.amountCollected) || 0;
+    const pendingAmount = salePending(paymentSale);
+    const receivedAmount = markPaid
+      ? pendingAmount
+      : Number(paymentReceived) || 0;
+    const nextCollected = currentCollected + receivedAmount;
+
+    if (receivedAmount <= 0) {
+      alert("Enter a payment amount greater than 0");
+      return;
+    }
+
+    if (receivedAmount > pendingAmount) {
+      alert("Payment received cannot be greater than pending amount");
+      return;
+    }
+
+    try {
+      await api.put(`/api/sales/${paymentSale.id}/payment`, {
+        amountCollected: nextCollected,
+        remarks: paymentRemarks,
+      });
+
+      alert(markPaid ? "Sale marked as paid" : "Payment updated successfully");
+      closePaymentEditor();
+      loadData();
+    } catch (error: any) {
+      console.error(error);
+      alert(error?.response?.data?.message || "Failed to update payment");
+    }
   };
 
   return (
@@ -680,6 +804,8 @@ export default function SalesPage() {
             <span>{selectedShop.location || "R.T. Nagar"}</span>
             <span>Daily ref: {selectedShop.minimumBoxesPerDay ?? 0} boxes</span>
             <span>Current balance: Rs. {selectedShopBalance}</span>
+            <span>Old balance paid: Rs. {amountAppliedToOldBalance}</span>
+            <span>Today's bill paid: Rs. {amountAppliedToThisSale}</span>
             <span>After entry: Rs. {balanceAfterCollection}</span>
           </div>
         )}
@@ -727,7 +853,7 @@ export default function SalesPage() {
             <input value={totalAmount} readOnly />
           </Field>
 
-          <Field label="Amount Collected">
+          <Field label="Amount Received Today">
             <input
               type="number"
               value={saleForm.amountCollected}
@@ -794,6 +920,115 @@ export default function SalesPage() {
           </button>
         </div>
       </Panel>
+      )}
+
+      {canCreateDelivery && activeTab === "allocation" && (
+        <>
+          <Panel
+            title="Box Allocation"
+            subtitle="Enter today's available boxes and map them against each shop's default daily requirement."
+            actions={
+              <button
+                className="admin-button"
+                type="button"
+                onClick={downloadBoxAllocation}
+                disabled={boxAllocation.length === 0}
+              >
+                <Download size={17} />
+                Download Sheet
+              </button>
+            }
+          >
+            <div className="admin-form-grid">
+              <Field label="Available Boxes">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={allocationBoxCount}
+                  onChange={(event) =>
+                    setAllocationBoxCount(
+                      event.target.value.replace(/[^\d]/g, ""),
+                    )
+                  }
+                />
+              </Field>
+            </div>
+
+            <div className="admin-stat-grid">
+              <StatCard
+                label="Available"
+                value={allocationTotalBoxes}
+                icon={<Boxes size={20} />}
+                tone="green"
+              />
+              <StatCard
+                label="Daily Need"
+                value={allocationTotals.dailyRequirement}
+                icon={<Calculator size={20} />}
+                tone="blue"
+              />
+              <StatCard
+                label="Shortage"
+                value={allocationTotals.shortageBoxes}
+                icon={<AlertTriangle size={20} />}
+                tone="amber"
+                critical={allocationTotals.shortageBoxes > 0}
+              />
+              <StatCard
+                label="Extra"
+                value={allocationTotals.surplusBoxes}
+                icon={<Receipt size={20} />}
+                tone="slate"
+              />
+            </div>
+          </Panel>
+
+          <Panel
+            title="Shop Wise Allocation"
+            subtitle="Sorted by highest daily requirement first."
+          >
+            {boxAllocation.length === 0 && (
+              <EmptyState
+                title="No allocation ready"
+                message="Create active shops with default daily boxes to generate the list."
+              />
+            )}
+
+            {boxAllocation.length > 0 && (
+              <div className="sales-table-wrap">
+                <table className="admin-data-table">
+                  <thead>
+                    <tr>
+                      <th>Shop</th>
+                      <th>Category</th>
+                      <th>Location</th>
+                      <th>Daily Need</th>
+                      <th>Allocated</th>
+                      <th>Shortage</th>
+                      <th>Extra</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {boxAllocation.map((allocation) => (
+                      <tr key={allocation.shopId}>
+                        <td>{allocation.shopName}</td>
+                        <td>{allocation.category}</td>
+                        <td>{allocation.location}</td>
+                        <td>{allocation.dailyRequirement}</td>
+                        <td>
+                          <strong>{allocation.allocatedBoxes}</strong>
+                        </td>
+                        <td>{allocation.shortageBoxes}</td>
+                        <td>{allocation.surplusBoxes}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+        </>
       )}
 
       {canManageShops && activeTab === "shops" && (
@@ -935,6 +1170,8 @@ export default function SalesPage() {
                       <th>Collected</th>
                       <th>Pending</th>
                       <th>Returned</th>
+                      <th>Entered By</th>
+                      <th>Payment Updated</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -947,6 +1184,14 @@ export default function SalesPage() {
                         <td>Rs. {sale.amountCollected ?? 0}</td>
                         <td>Rs. {salePending(sale)}</td>
                         <td>{sale.returnedBoxes ?? 0}</td>
+                        <td>
+                          <strong>{auditName(sale.createdByName)}</strong>
+                          <span>{sale.createdByEmail || "-"}</span>
+                        </td>
+                        <td>
+                          <strong>{auditName(sale.updatedByName)}</strong>
+                          <span>{sale.updatedAt ? formatDateTime(sale.updatedAt) : "-"}</span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1018,6 +1263,9 @@ export default function SalesPage() {
                   <th>Exchange</th>
                   <th>Returned</th>
                   <th>Status</th>
+                  <th>Entered By</th>
+                  <th>Last Updated By</th>
+                  <th>Payment</th>
                 </tr>
               </thead>
               <tbody>
@@ -1047,6 +1295,34 @@ export default function SalesPage() {
                     <td>
                       <StatusPill status={sale.paymentStatus} />
                     </td>
+                    <td>
+                      <strong>{auditName(sale.createdByName)}</strong>
+                      <span>{sale.createdByEmail || "-"}</span>
+                    </td>
+                    <td>
+                      <strong>{auditName(sale.updatedByName)}</strong>
+                      <span>
+                        {sale.updatedAt
+                          ? `${formatDateTime(sale.updatedAt)} - ${sale.updatedByEmail || "-"}`
+                          : "-"}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        className="admin-action-button"
+                        type="button"
+                        onClick={() => openPaymentEditor(sale)}
+                        disabled={salePending(sale) <= 0}
+                        title={
+                          salePending(sale) <= 0
+                            ? "This sale is already fully paid"
+                            : "Edit payment"
+                        }
+                      >
+                        <Pencil size={15} />
+                        Edit
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1054,6 +1330,83 @@ export default function SalesPage() {
           </div>
         )}
       </Panel>
+      )}
+
+      {paymentSale && (
+        <div className="admin-modal-backdrop" role="presentation">
+          <div className="admin-confirm-modal sales-payment-modal" role="dialog" aria-modal="true">
+            <div className="admin-confirm-icon sales-payment-icon">
+              <WalletCards size={22} />
+            </div>
+            <div>
+              <h2>Update payment</h2>
+              <p>
+                Record collection for <strong>{paymentSale.customerName}</strong>.
+                This will update the ledger status, shop balance, dashboard
+                balance, and audit trail.
+              </p>
+            </div>
+
+            <div className="sales-payment-summary">
+              <span>
+                <small>Total</small>
+                <strong>Rs. {paymentSale.totalAmount ?? 0}</strong>
+              </span>
+              <span>
+                <small>Collected</small>
+                <strong>Rs. {paymentSale.amountCollected ?? 0}</strong>
+              </span>
+              <span>
+                <small>Pending</small>
+                <strong>Rs. {salePending(paymentSale)}</strong>
+              </span>
+            </div>
+
+            <div className="admin-form-grid">
+              <Field label="Amount Received Now">
+                <input
+                  type="number"
+                  min="0"
+                  max={salePending(paymentSale)}
+                  value={paymentReceived}
+                  onChange={(event) => setPaymentReceived(event.target.value)}
+                />
+              </Field>
+              <Field label="Remarks">
+                <input
+                  value={paymentRemarks}
+                  onChange={(event) => setPaymentRemarks(event.target.value)}
+                  placeholder="Optional payment note"
+                />
+              </Field>
+            </div>
+
+            <div className="admin-confirm-actions">
+              <button
+                className="admin-button admin-button-secondary"
+                type="button"
+                onClick={closePaymentEditor}
+              >
+                Cancel
+              </button>
+              <button
+                className="admin-button admin-button-secondary"
+                type="button"
+                onClick={() => savePayment(true)}
+              >
+                Mark Paid
+              </button>
+              <button
+                className="admin-button"
+                type="button"
+                onClick={() => savePayment(false)}
+              >
+                <WalletCards size={16} />
+                Save Payment
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {shopToDelete && (
@@ -1132,6 +1485,105 @@ function calculateExchangeCredit(
   return 0;
 }
 
+function buildBoxAllocation(shops: any[], totalBoxes: number): BoxAllocation[] {
+  const plannedShops = shops
+    .map((shop) => ({
+      shopId: shop.id,
+      shopName: shop.customerName || "Shop",
+      category: shop.shopCategory || "Shop",
+      location: shop.location || "R.T. Nagar",
+      dailyRequirement: Math.max(
+        0,
+        Math.floor(Number(shop.minimumBoxesPerDay) || 0),
+      ),
+    }))
+    .filter((shop) => shop.dailyRequirement > 0)
+    .sort((first, second) => {
+      if (second.dailyRequirement !== first.dailyRequirement) {
+        return second.dailyRequirement - first.dailyRequirement;
+      }
+
+      return first.shopName.localeCompare(second.shopName);
+    });
+
+  if (plannedShops.length === 0) {
+    return [];
+  }
+
+  const availableBoxes = Math.max(0, Math.floor(totalBoxes) || 0);
+  const dailyRequirement = plannedShops.reduce(
+    (total, shop) => total + shop.dailyRequirement,
+    0,
+  );
+  const allocations = plannedShops.map((shop) => ({
+    ...shop,
+    allocatedBoxes: 0,
+  }));
+
+  if (availableBoxes < dailyRequirement) {
+    const proportionalRows = allocations
+      .map((shop, index) => {
+        const exactShare =
+          dailyRequirement > 0
+            ? (availableBoxes * shop.dailyRequirement) / dailyRequirement
+            : 0;
+
+        return {
+          index,
+          remainder: exactShare - Math.floor(exactShare),
+          requirement: shop.dailyRequirement,
+          allocatedBoxes: Math.floor(exactShare),
+        };
+      })
+      .sort((first, second) => {
+        if (second.remainder !== first.remainder) {
+          return second.remainder - first.remainder;
+        }
+
+        return second.requirement - first.requirement;
+      });
+    let remainingBoxes =
+      availableBoxes -
+      proportionalRows.reduce((total, row) => total + row.allocatedBoxes, 0);
+
+    proportionalRows.forEach((row) => {
+      allocations[row.index].allocatedBoxes = row.allocatedBoxes;
+    });
+    proportionalRows.forEach((row) => {
+      if (remainingBoxes <= 0) {
+        return;
+      }
+
+      allocations[row.index].allocatedBoxes += 1;
+      remainingBoxes -= 1;
+    });
+  } else {
+    allocations.forEach((shop) => {
+      shop.allocatedBoxes = shop.dailyRequirement;
+    });
+
+    let extraBoxes = availableBoxes - dailyRequirement;
+    let cursor = 0;
+
+    while (extraBoxes > 0) {
+      allocations[cursor % allocations.length].allocatedBoxes += 1;
+      extraBoxes -= 1;
+      cursor += 1;
+    }
+  }
+
+  return allocations.map((shop) => ({
+    shopId: shop.shopId,
+    shopName: shop.shopName,
+    category: shop.category,
+    location: shop.location,
+    dailyRequirement: shop.dailyRequirement,
+    allocatedBoxes: shop.allocatedBoxes,
+    shortageBoxes: Math.max(0, shop.dailyRequirement - shop.allocatedBoxes),
+    surplusBoxes: Math.max(0, shop.allocatedBoxes - shop.dailyRequirement),
+  }));
+}
+
 function formatExchange(value?: string) {
   return exchangeTypes.find((type) => type.value === value)?.label || "None";
 }
@@ -1171,4 +1623,16 @@ function formatDate(value?: string) {
   }
 
   return new Date(value).toLocaleDateString("en-IN");
+}
+
+function formatDateTime(value?: string) {
+  if (!value) {
+    return "-";
+  }
+
+  return new Date(value).toLocaleString("en-IN");
+}
+
+function auditName(value?: string) {
+  return value && value !== "SYSTEM" ? value : "System";
 }

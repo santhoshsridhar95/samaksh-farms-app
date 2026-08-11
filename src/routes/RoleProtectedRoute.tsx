@@ -14,7 +14,7 @@ export default function RoleBasedRoute({
   allowedRoles
 }: Props) {
 
-  const { token, role } = getActiveSession();
+  const { token, roles } = getActiveSession();
 
   if (!token) {
 
@@ -27,8 +27,8 @@ export default function RoleBasedRoute({
   }
 
   if (
-    !role ||
-    !allowedRoles.includes(role)
+    roles.length === 0 ||
+    !roles.some((role) => allowedRoles.includes(role))
   ) {
 
     return (

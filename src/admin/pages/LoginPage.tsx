@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import api from "../services/api";
 import { markSessionStarted } from "../../routes/authSession";
 import { GOOGLE_CLIENT_ID } from "../../config/api";
+import { pingServerOnLoginPage } from "../utils/serverKeepAlive";
 
 import { Eye, EyeOff, Loader2, Lock, Mail, Phone, User } from "lucide-react";
 
@@ -34,6 +35,10 @@ export default function LoginPage({
   const [messageTone, setMessageTone] = useState<"error" | "success">("error");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    pingServerOnLoginPage();
+  }, []);
 
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID || mode === "forgot" || mode === "verify") {
@@ -231,6 +236,7 @@ export default function LoginPage({
 
     localStorage.setItem("token", data.token);
     localStorage.setItem("role", data.role);
+    localStorage.setItem("roles", JSON.stringify(data.roles || [data.role]));
     localStorage.setItem("userName", data.name);
     localStorage.setItem("userId", String(data.userId));
     markSessionStarted();

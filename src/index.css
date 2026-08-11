@@ -22,6 +22,16 @@ body {
   color: var(--text);
 }
 
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 * {
   transition: all 0.25s ease;
 }
@@ -1110,6 +1120,74 @@ input {
   font-size: 12px;
 }
 
+.admin-role-picker {
+  position: relative;
+  min-width: 220px;
+}
+
+.admin-role-picker-summary {
+  width: 100%;
+  min-height: 38px;
+  padding: 9px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.admin-role-picker-summary.is-open {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.admin-role-picker-menu {
+  position: absolute;
+  z-index: 30;
+  display: grid;
+  gap: 6px;
+  width: min(280px, 80vw);
+  margin-top: 6px;
+  padding: 10px;
+  border: 1px solid #dbe3ea;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.16);
+}
+
+.admin-role-picker-menu label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  color: #0f172a;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-role-picker-menu input {
+  width: 16px;
+  height: 16px;
+}
+
+.admin-role-picker-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.admin-role-picker-footer .admin-button {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
 .admin-button:hover,
 .admin-icon-button:hover,
 .admin-action-button:hover {
@@ -1769,6 +1847,11 @@ input {
   box-shadow: 0 28px 80px rgba(15, 23, 42, 0.28);
 }
 
+.sales-payment-modal {
+  width: min(560px, 100%);
+  border-color: #bfdbfe;
+}
+
 .admin-confirm-icon {
   display: inline-flex;
   align-items: center;
@@ -1778,6 +1861,42 @@ input {
   border-radius: 8px;
   background: #fee2e2;
   color: #b91c1c;
+}
+
+.sales-payment-icon {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.sales-payment-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sales-payment-summary span {
+  min-height: 72px;
+  padding: 12px;
+  border: 1px solid #dbe3ea;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.sales-payment-summary small,
+.sales-payment-summary strong {
+  display: block;
+}
+
+.sales-payment-summary small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sales-payment-summary strong {
+  margin-top: 6px;
+  color: #0f172a;
+  font-size: 16px;
 }
 
 .admin-confirm-modal h2 {
