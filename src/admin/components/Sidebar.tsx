@@ -6,17 +6,19 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
+  Server,
   Repeat2,
   Sprout,
   Users,
 } from "lucide-react";
 
 import { NavLink, useNavigate } from "react-router-dom";
+import { clearSession, getStoredRoles } from "../../routes/authSession";
 
 export default function Sidebar() {
   const navigate = useNavigate();
 
-  const role = localStorage.getItem("role");
+  const roles = getStoredRoles();
 
   const menuItems = [
     {
@@ -73,17 +75,20 @@ export default function Sidebar() {
       icon: History,
       roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN"],
     },
+    {
+      to: "/admin/server",
+      label: "Server",
+      icon: Server,
+      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN", "SALES_EMPLOYEE", "SALES_USER"],
+    },
   ];
 
   const visibleMenus = menuItems.filter(
-    (item) => role && item.roles.includes(role),
+    (item) => roles.some((role) => item.roles.includes(role)),
   );
 
   const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("role");
-    localStorage.removeItem("userName");
-    localStorage.removeItem("userId");
+    clearSession();
 
     navigate("/login");
   };

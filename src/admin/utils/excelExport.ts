@@ -20,6 +20,16 @@ type WorkbookSale = {
   remarks?: string;
 };
 
+type BoxAllocationRow = {
+  shopName: string;
+  category?: string;
+  location?: string;
+  dailyRequirement: number;
+  allocatedBoxes: number;
+  shortageBoxes: number;
+  surplusBoxes: number;
+};
+
 type WorkbookSheet = {
   name: string;
   xml: string;
@@ -57,6 +67,41 @@ export function downloadSalesWorkbook(
     })),
   ];
 
+  const files: Record<string, string | Uint8Array> = {
+    "[Content_Types].xml": contentTypesXml(workbookSheets.length),
+    "_rels/.rels": rootRelsXml(),
+    "xl/workbook.xml": workbookXml(workbookSheets),
+    "xl/_rels/workbook.xml.rels": workbookRelsXml(workbookSheets.length),
+    "xl/styles.xml": stylesXml(),
+  };
+
+  workbookSheets.forEach((sheet, index) => {
+    files[`xl/worksheets/sheet${index + 1}.xml`] = sheet.xml;
+  });
+
+  const blob = new Blob([createZip(files)], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = workbookName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export function downloadBoxAllocationWorkbook(
+  rows: BoxAllocationRow[],
+  totalBoxes: number,
+) {
+  const workbookName = `ShopBoxAllocation-${totalBoxes || 0}-Boxes.xlsx`;
+  const workbookSheets: WorkbookSheet[] = [
+    {
+      name: "Allocation",
+      xml: boxAllocationSheetXml(rows, totalBoxes),
+    },
+  ];
   const files: Record<string, string | Uint8Array> = {
     "[Content_Types].xml": contentTypesXml(workbookSheets.length),
     "_rels/.rels": rootRelsXml(),
@@ -188,6 +233,76 @@ function shopSheetXml(shop: WorkbookShop, sales: WorkbookSale[], sheetName: stri
     merges: '<mergeCells count="2"><mergeCell ref="B1:D1"/><mergeCell ref="B2:D2"/></mergeCells>',
     hyperlinks: `<hyperlink ref="I1" location="'Sheet1'!A1" display="Back to Listing Page"/>`,
     sheetName,
+  });
+}
+
+function boxAllocationSheetXml(rows: BoxAllocationRow[], totalBoxes: number) {
+  const totalRequirement = rows.reduce(
+    (total, row) => total + row.dailyRequirement,
+    0,
+  );
+  const totalAllocated = rows.reduce(
+    (total, row) => total + row.allocatedBoxes,
+    0,
+  );
+  const totalShortage = rows.reduce((total, row) => total + row.shortageBoxes, 0);
+  const totalSurplus = rows.reduce((total, row) => total + row.surplusBoxes, 0);
+  const tableStart = 6;
+  const rowsXml = [
+    rowXml(1, [
+      textCell("A1", "Shop Box Allocation", 3),
+      emptyCell("B1", 3),
+      emptyCell("C1", 3),
+      emptyCell("D1", 3),
+      emptyCell("E1", 3),
+      emptyCell("F1", 3),
+      emptyCell("G1", 3),
+    ]),
+    rowXml(3, [
+      textCell("A3", "Boxes Entered", 1),
+      numberCell("B3", totalBoxes),
+      textCell("C3", "Daily Requirement", 1),
+      numberCell("D3", totalRequirement),
+      textCell("E3", "Allocated", 1),
+      numberCell("F3", totalAllocated),
+    ]),
+    rowXml(4, [
+      textCell("A4", "Shortage", 1),
+      numberCell("B4", totalShortage),
+      textCell("C4", "Surplus", 1),
+      numberCell("D4", totalSurplus),
+    ]),
+    rowXml(tableStart, [
+      textCell(`A${tableStart}`, "Sl No", 1),
+      textCell(`B${tableStart}`, "Shop Name", 1),
+      textCell(`C${tableStart}`, "Category", 1),
+      textCell(`D${tableStart}`, "Location", 1),
+      textCell(`E${tableStart}`, "Daily Requirement", 1),
+      textCell(`F${tableStart}`, "Allocated Boxes", 1),
+      textCell(`G${tableStart}`, "Shortage", 1),
+      textCell(`H${tableStart}`, "Surplus", 1),
+    ]),
+    ...rows.map((allocation, index) => {
+      const rowNumber = tableStart + index + 1;
+
+      return rowXml(rowNumber, [
+        numberCell(`A${rowNumber}`, index + 1),
+        textCell(`B${rowNumber}`, allocation.shopName || "Shop"),
+        textCell(`C${rowNumber}`, allocation.category || "Shop"),
+        textCell(`D${rowNumber}`, allocation.location || "R.T. Nagar"),
+        numberCell(`E${rowNumber}`, allocation.dailyRequirement),
+        numberCell(`F${rowNumber}`, allocation.allocatedBoxes),
+        numberCell(`G${rowNumber}`, allocation.shortageBoxes),
+        numberCell(`H${rowNumber}`, allocation.surplusBoxes),
+      ]);
+    }),
+  ];
+
+  return worksheetXml({
+    columns:
+      '<cols><col min="1" max="1" width="8" customWidth="1"/><col min="2" max="2" width="28" customWidth="1"/><col min="3" max="3" width="20" customWidth="1"/><col min="4" max="4" width="18" customWidth="1"/><col min="5" max="8" width="18" customWidth="1"/></cols>',
+    rows: rowsXml.join(""),
+    merges: '<mergeCells count="1"><mergeCell ref="A1:G1"/></mergeCells>',
   });
 }
 

@@ -7,22 +7,40 @@ type JwtPayload = {
 export function getActiveSession() {
   const token = localStorage.getItem(AUTH_CONFIG.tokenKey);
   const role = localStorage.getItem(AUTH_CONFIG.roleKey);
+  const roles = getStoredRoles();
   const loginAt = Number(localStorage.getItem("loginAt") || 0);
 
   if (!token || isJwtExpired(token) || isClientSessionExpired(loginAt)) {
     clearSession();
-    return { token: null, role: null };
+    return { token: null, role: null, roles: [] };
   }
 
-  return { token, role };
+  return { token, role, roles };
 }
 
 export function clearSession() {
   localStorage.removeItem(AUTH_CONFIG.tokenKey);
   localStorage.removeItem(AUTH_CONFIG.roleKey);
+  localStorage.removeItem("roles");
   localStorage.removeItem("userName");
   localStorage.removeItem("userId");
   localStorage.removeItem("loginAt");
+}
+
+export function getStoredRoles() {
+  const primaryRole = localStorage.getItem(AUTH_CONFIG.roleKey);
+
+  try {
+    const roles = JSON.parse(localStorage.getItem("roles") || "[]");
+
+    if (Array.isArray(roles) && roles.length > 0) {
+      return roles.map(String);
+    }
+  } catch {
+    // Fall back to the primary role below.
+  }
+
+  return primaryRole ? [primaryRole] : [];
 }
 
 export function markSessionStarted() {
