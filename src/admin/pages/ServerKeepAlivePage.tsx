@@ -3,6 +3,7 @@ import { Activity, Clock, Power, RefreshCw, Save } from "lucide-react";
 
 import AdminLayout from "../components/AdminLayout";
 import { Field, PageHeader, Panel, StatCard, StatusPill } from "../components/AdminUI";
+import api from "../services/api";
 import {
   getLastServerPingResult,
   getServerKeepAliveSettings,
@@ -13,6 +14,15 @@ import {
   type ServerPingResult,
 } from "../utils/serverKeepAlive";
 
+type BackendKeepAwakeSettings = {
+  enabled: boolean;
+  intervalMinutes: number;
+  targetUrl: string;
+  lastPingAt?: string;
+  lastStatusCode?: number;
+  lastMessage?: string;
+};
+
 export default function ServerKeepAlivePage() {
   const [settings, setSettings] = useState<ServerKeepAliveSettings>(
     getServerKeepAliveSettings,
@@ -22,6 +32,14 @@ export default function ServerKeepAlivePage() {
   );
   const [saving, setSaving] = useState(false);
   const [pinging, setPinging] = useState(false);
+  const [backendSaving, setBackendSaving] = useState(false);
+  const [backendPinging, setBackendPinging] = useState(false);
+  const [backendSettings, setBackendSettings] =
+    useState<BackendKeepAwakeSettings>({
+      enabled: false,
+      intervalMinutes: 10,
+      targetUrl: "",
+    });
 
   useEffect(() => {
     const refreshResult = () => setLastResult(getLastServerPingResult());
@@ -30,6 +48,10 @@ export default function ServerKeepAlivePage() {
     window.addEventListener(eventName, refreshResult);
     return () =>
       window.removeEventListener(eventName, refreshResult);
+  }, []);
+
+  useEffect(() => {
+    loadBackendSettings();
   }, []);
 
   const updateSetting = <Key extends keyof ServerKeepAliveSettings>(
@@ -54,6 +76,54 @@ export default function ServerKeepAlivePage() {
     const result = await pingServer();
     setLastResult(result);
     setPinging(false);
+  };
+
+  const loadBackendSettings = async () => {
+    try {
+      const response = await api.get("/api/server/keep-awake");
+      setBackendSettings(response?.data?.data || backendSettings);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const updateBackendSetting = <Key extends keyof BackendKeepAwakeSettings>(
+    key: Key,
+    value: BackendKeepAwakeSettings[Key],
+  ) => {
+    setBackendSettings((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
+
+  const saveBackendSettings = async () => {
+    try {
+      setBackendSaving(true);
+      const response = await api.put(
+        "/api/server/keep-awake",
+        backendSettings,
+      );
+      setBackendSettings(response?.data?.data || backendSettings);
+    } catch (error) {
+      console.error(error);
+      alert("Unable to update backend keep-awake settings");
+    } finally {
+      setBackendSaving(false);
+    }
+  };
+
+  const pingBackendNow = async () => {
+    try {
+      setBackendPinging(true);
+      const response = await api.post("/api/server/keep-awake/ping");
+      setBackendSettings(response?.data?.data || backendSettings);
+    } catch (error) {
+      console.error(error);
+      alert("Unable to ping from backend");
+    } finally {
+      setBackendPinging(false);
+    }
   };
 
   return (
@@ -102,7 +172,87 @@ export default function ServerKeepAlivePage() {
       </div>
 
       <Panel
-        title="Keep Awake Settings"
+        title="Backend Keep Awake"
+        subtitle="Runs from the API server. Set the target to your public Render health URL, for example https://your-api.onrender.com/api/health/ping."
+        actions={
+          <button
+            className="admin-button admin-button-secondary"
+            type="button"
+            onClick={pingBackendNow}
+          >
+            <RefreshCw size={17} className={backendPinging ? "spin" : ""} />
+            Backend Ping Now
+          </button>
+        }
+      >
+        <div className="admin-form-grid">
+          <Field label="Backend Keep Awake">
+            <select
+              value={backendSettings.enabled ? "true" : "false"}
+              onChange={(event) =>
+                updateBackendSetting("enabled", event.target.value === "true")
+              }
+            >
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
+            </select>
+          </Field>
+
+          <Field label="Backend Ping Minutes">
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={backendSettings.intervalMinutes}
+              onChange={(event) =>
+                updateBackendSetting(
+                  "intervalMinutes",
+                  Number(event.target.value) || 1,
+                )
+              }
+            />
+          </Field>
+
+          <Field label="Backend Target URL" span="full">
+            <input
+              value={backendSettings.targetUrl}
+              onChange={(event) =>
+                updateBackendSetting("targetUrl", event.target.value)
+              }
+              placeholder="https://your-api.onrender.com/api/health/ping"
+            />
+          </Field>
+
+          <button
+            className="admin-button"
+            type="button"
+            onClick={saveBackendSettings}
+          >
+            <Save size={17} />
+            {backendSaving ? "Saving" : "Save Backend Settings"}
+          </button>
+        </div>
+
+        <div className="sales-context-strip">
+          <span>
+            <StatusPill
+              status={backendSettings.enabled ? "Backend enabled" : "Backend disabled"}
+              tone={backendSettings.enabled ? "success" : "neutral"}
+            />
+          </span>
+          <span>
+            Last backend ping:{" "}
+            {backendSettings.lastPingAt
+              ? formatDateTime(backendSettings.lastPingAt)
+              : "-"}
+          </span>
+          <span>Status: {backendSettings.lastStatusCode ?? "-"}</span>
+          <span>{backendSettings.lastMessage || "No backend ping yet"}</span>
+        </div>
+      </Panel>
+
+      <Panel
+        title="Browser Keep Awake Settings"
         subtitle="These settings are stored on this browser and do not require a database call."
       >
         <div className="admin-form-grid">
@@ -204,6 +354,8 @@ export default function ServerKeepAlivePage() {
   );
 }
 
-function formatDateTime(value: number) {
+function formatDateTime(value: string): string;
+function formatDateTime(value: number): string;
+function formatDateTime(value: string | number) {
   return new Date(value).toLocaleString("en-IN");
 }
