@@ -5,6 +5,7 @@ import {
   IndianRupee,
   LayoutDashboard,
   LogOut,
+  MessageSquareText,
   Package,
   Server,
   Repeat2,
@@ -74,6 +75,12 @@ export default function Sidebar() {
       label: "Audit",
       icon: History,
       roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN"],
+    },
+    {
+      to: "/admin/reviews",
+      label: "Reviews",
+      icon: MessageSquareText,
+      roles: ["SUPER_ADMIN"],
     },
     {
       to: "/admin/server",

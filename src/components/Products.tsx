@@ -81,6 +81,7 @@ Thank you.
 
   return (
     <section
+      id="products"
       className="section container"
       style={{
         paddingTop: "10px",

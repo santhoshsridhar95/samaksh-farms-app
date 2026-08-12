@@ -26,6 +26,7 @@
 .login-card {
 
   width: 420px;
+  position: relative;
 
   backdrop-filter: blur(20px);
 
@@ -49,6 +50,21 @@
   box-shadow:
   0 20px 60px
   rgba(0,0,0,0.35);
+}
+
+.login-back-link {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.login-back-link:hover {
+  color: #ffffff;
+  text-decoration: underline;
 }
 
 .logo {

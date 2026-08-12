@@ -1,41 +1,43 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
+import api from "../api/api";
 
 interface Review {
   name: string;
   location: string;
   review: string;
+  rating: number;
 }
 
-const reviews: Review[] = [
+const fallbackReviews: Review[] = [
   {
     name: "Ravi Kumar",
     location: "Hebbal, Bengaluru",
-    review:
-      "Fresh mushrooms, excellent quality and neatly packed.",
+    rating: 5,
+    review: "Fresh mushrooms, excellent quality and neatly packed.",
   },
   {
     name: "Sneha Reddy",
     location: "RT Nagar, Bengaluru",
-    review:
-      "Very fresh oyster mushrooms. Excellent quality.",
+    rating: 5,
+    review: "Very fresh oyster mushrooms. Excellent quality.",
   },
   {
     name: "Arjun N",
     location: "HBR Layout, Bengaluru",
-    review:
-      "Consistent quality every time.",
+    rating: 4,
+    review: "Consistent quality every time.",
   },
   {
     name: "Manjunath S",
     location: "Devanahalli, Bengaluru",
-    review:
-      "Everyone appreciated the freshness and taste.",
+    rating: 5,
+    review: "Everyone appreciated the freshness and taste.",
   },
   {
     name: "Priya Sharma",
     location: "Yelahanka, Bengaluru",
-    review:
-      "Fresh and well packed mushrooms.",
+    rating: 5,
+    review: "Fresh and well packed mushrooms.",
   },
 ];
 
@@ -46,154 +48,126 @@ export default function Reviews(): ReactElement {
     return 4;
   };
 
-  const [visibleCards, setVisibleCards] =
-    useState<number>(getVisibleCards());
+  const [visibleCards, setVisibleCards] = useState<number>(getVisibleCards());
+  const [startIndex, setStartIndex] = useState<number>(0);
+  const [paused, setPaused] = useState<boolean>(false);
+  const [customerReviews, setCustomerReviews] =
+    useState<Review[]>(fallbackReviews);
 
-  const [startIndex, setStartIndex] =
-    useState<number>(0);
+  const loadReviews = async () => {
+    try {
+      const response = await api.get("/api/reviews");
+      const apiReviews = response?.data?.data;
 
-  const [paused, setPaused] =
-    useState<boolean>(false);
+      if (Array.isArray(apiReviews) && apiReviews.length > 0) {
+        setCustomerReviews(apiReviews);
+      }
+    } catch {
+      setCustomerReviews(fallbackReviews);
+    }
+  };
+
+  useEffect(() => {
+    loadReviews();
+
+    window.addEventListener("samaksh-review-created", loadReviews);
+
+    return () =>
+      window.removeEventListener("samaksh-review-created", loadReviews);
+  }, []);
 
   useEffect(() => {
     const handleResize = (): void => {
       setVisibleCards(getVisibleCards());
     };
 
-    window.addEventListener(
-      "resize",
-      handleResize
-    );
+    window.addEventListener("resize", handleResize);
 
-    return () =>
-      window.removeEventListener(
-        "resize",
-        handleResize
-      );
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  const allReviews = useMemo(
+    () => (customerReviews.length > 0 ? customerReviews : fallbackReviews),
+    [customerReviews],
+  );
+
   useEffect(() => {
-    if (paused) return;
+    if (paused || allReviews.length === 0) return;
 
     const timer = setInterval(() => {
-      setStartIndex(
-        (prev) =>
-          (prev + 1) % reviews.length
-      );
+      setStartIndex((prev) => (prev + 1) % allReviews.length);
     }, 5000);
 
     return () => clearInterval(timer);
-  }, [paused]);
+  }, [paused, allReviews.length]);
 
   const next = (): void => {
-    setStartIndex(
-      (prev) =>
-        (prev + 1) % reviews.length
-    );
+    setStartIndex((prev) => (prev + 1) % allReviews.length);
   };
 
   const prev = (): void => {
     setStartIndex(
-      (prev) =>
-        (prev - 1 + reviews.length) %
-        reviews.length
+      (prev) => (prev - 1 + allReviews.length) % allReviews.length,
     );
   };
 
   const visibleReviews: Review[] = [];
 
-  for (
-    let i = 0;
-    i < visibleCards;
-    i++
-  ) {
-    visibleReviews.push(
-      reviews[
-        (startIndex + i) %
-          reviews.length
-      ]
-    );
+  for (let i = 0; i < visibleCards; i++) {
+    visibleReviews.push(allReviews[(startIndex + i) % allReviews.length]);
   }
 
   return (
-    <section className="section container">
-      <div
-        style={{
-          textAlign: "center",
-          marginBottom: "40px",
-        }}
-      >
-        <h2>
-          Trusted by Families Across
-          Bengaluru
-        </h2>
+    <section className="section container" id="reviews">
+      <div className="reviews-header">
+        <div>
+          <h2>Trusted by Families Across Bengaluru</h2>
+          <p>Genuine feedback from our customers.</p>
+        </div>
 
-        <p
-          style={{
-            maxWidth: "650px",
-            margin: "10px auto",
-            opacity: 0.7,
-          }}
-        >
-          Genuine feedback from our
-          customers.
-        </p>
+        <a className="review-us-link" href="#write-review">
+          Review us
+        </a>
       </div>
 
       <div
         className="reviews-carousel"
-        onMouseEnter={() =>
-          setPaused(true)
-        }
-        onMouseLeave={() =>
-          setPaused(false)
-        }
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
       >
-        <button
-          className="review-arrow"
-          type="button"
-          onClick={prev}
-        >
+        <button className="review-arrow" type="button" onClick={prev}>
           {"<"}
         </button>
 
         <div className="reviews-grid-slider">
-          {visibleReviews.map(
-            (review, index) => (
-              <div
-                key={`${review.name}-${index}`}
-                className="review-card"
-              >
-                <div className="stars">
-                  *****
-                </div>
-
-                <p className="review-text">
-                  "{review.review}"
-                </p>
-
-                <div className="review-footer">
-                  <strong>
-                    {review.name}
-                  </strong>
-
-                  <span>
-                    {review.location}
-                  </span>
-                </div>
+          {visibleReviews.map((review, index) => (
+            <div
+              key={`${review.name}-${review.review}-${index}`}
+              className="review-card"
+            >
+              <div className="stars" aria-label={`${review.rating} star review`}>
+                {starsForRating(review.rating)}
               </div>
-            )
-          )}
+
+              <p className="review-text">"{review.review}"</p>
+
+              <div className="review-footer">
+                <strong>{review.name}</strong>
+                <span>{review.location}</span>
+              </div>
+            </div>
+          ))}
         </div>
 
-        <button
-          className="review-arrow"
-          type="button"
-          onClick={next}
-        >
+        <button className="review-arrow" type="button" onClick={next}>
           {">"}
         </button>
       </div>
     </section>
   );
+}
+
+function starsForRating(value: number) {
+  const safeRating = Math.min(5, Math.max(1, Math.round(value)));
+  return "\u2605".repeat(safeRating) + "\u2606".repeat(5 - safeRating);
 }

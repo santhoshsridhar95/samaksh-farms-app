@@ -6,3 +6,8 @@ export const API_BASE_URL =
 
 export const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+
+export const PUBLIC_SITE_URL =
+  String(import.meta.env.VITE_PUBLIC_SITE_URL || "")
+    .trim()
+    .replace(/\/$/, "");

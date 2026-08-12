@@ -8,6 +8,7 @@ import Contact from "../components/Contact";
 import Footer from "../components/Footer";
 import WhatsAppButton from "../components/WhatsAppButton";
 import Reviews from "../components/Reviews";
+import ReviewSubmission from "../components/ReviewSubmission";
 
 export default function HomePage() {
 
@@ -38,6 +39,8 @@ export default function HomePage() {
       <About />
 
       <Contact />
+
+      <ReviewSubmission />
 
       <Footer />
 
