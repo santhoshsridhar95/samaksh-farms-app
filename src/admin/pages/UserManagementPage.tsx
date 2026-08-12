@@ -73,6 +73,7 @@ export default function UserManagementPage() {
   const [rolePickerPosition, setRolePickerPosition] =
     useState<RolePickerPosition | null>(null);
   const rolePickerRef = useRef<HTMLDivElement | null>(null);
+  const openRolePickerUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -91,11 +92,34 @@ export default function UserManagementPage() {
   }, [banner]);
 
   useEffect(() => {
+    openRolePickerUserIdRef.current = openRolePickerUserId;
+  }, [openRolePickerUserId]);
+
+  useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
+      if (!openRolePickerUserIdRef.current) {
+        return;
+      }
+
+      const target = event.target as Element | null;
+
+      if (
+        target?.closest("[data-role-picker-menu='true']") ||
+        target?.closest("[data-role-picker-trigger='true']")
+      ) {
+        return;
+      }
+
       if (
         rolePickerRef.current &&
         !rolePickerRef.current.contains(event.target as Node)
       ) {
+        setOpenRolePickerUserId(null);
+        setRolePickerPosition(null);
+        return;
+      }
+
+      if (!rolePickerRef.current) {
         setOpenRolePickerUserId(null);
         setRolePickerPosition(null);
       }
@@ -437,6 +461,7 @@ export default function UserManagementPage() {
                               openRolePickerUserId === userId ? "is-open" : ""
                             }`}
                             type="button"
+                            data-role-picker-trigger="true"
                             aria-expanded={openRolePickerUserId === userId}
                             onClick={(event) =>
                               toggleRolePicker(
@@ -608,6 +633,9 @@ function RolePickerMenu({
     <div
       className="admin-role-picker-menu admin-role-picker-menu-floating"
       ref={menuRef}
+      data-role-picker-menu="true"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
       style={{
         top: position.top,
         left: position.left,
@@ -615,7 +643,11 @@ function RolePickerMenu({
       }}
     >
       {roles.map((role) => (
-        <label key={role}>
+        <label
+          key={role}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
           <input
             type="checkbox"
             checked={selectedRoles.includes(role)}
