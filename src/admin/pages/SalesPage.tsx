@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Download,
   AlertTriangle,
@@ -90,6 +90,20 @@ type BannerState = {
   tone: "success" | "error";
   message: string;
 } | null;
+type ShopFieldErrors = Partial<Record<keyof ShopForm, string>>;
+
+const deliverySuccessMessages = [
+  "Nice. One delivery down. Keep the route hot and the next shop smiling.",
+  "Saved. Strong pace today. Next stop, next win.",
+  "Great drop. The day is moving, and so are you.",
+  "Delivery locked. Fresh boxes out, momentum up.",
+  "Good work. Clean entry, clear route, next order waiting."
+];
+
+function optionalText(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
 
 export default function SalesPage() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -111,6 +125,8 @@ export default function SalesPage() {
   const [shopForm, setShopForm] = useState<ShopForm>(emptyShopForm);
   const [saleForm, setSaleForm] = useState<SaleForm>(emptySaleForm);
   const [banner, setBanner] = useState<BannerState>(null);
+  const [shopFieldErrors, setShopFieldErrors] = useState<ShopFieldErrors>({});
+  const bannerRef = useRef<HTMLDivElement | null>(null);
 
   const role = localStorage.getItem("role");
   const hasPermission = (permission: string) =>
@@ -123,6 +139,18 @@ export default function SalesPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!banner) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setBanner(null);
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [banner]);
 
   const loadData = async () => {
     try {
@@ -262,6 +290,15 @@ export default function SalesPage() {
       ...current,
       [field]: value,
     }));
+    setShopFieldErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
   };
 
   const toggleShopProduct = (productName: string) => {
@@ -302,7 +339,61 @@ export default function SalesPage() {
     }));
   };
 
+  const showBanner = (nextBanner: Exclude<BannerState, null>) => {
+    setBanner(nextBanner);
+  };
+
+  const deliverySuccessMessage = () =>
+    deliverySuccessMessages[
+      Math.floor(Math.random() * deliverySuccessMessages.length)
+    ];
+
+  const validateShopForm = () => {
+    const errors: ShopFieldErrors = {};
+
+    if (!shopForm.customerName.trim()) {
+      errors.customerName = "Shop name is required";
+    }
+
+    if (!shopForm.shopCategory.trim()) {
+      errors.shopCategory = "Shop category is required";
+    }
+
+    if (!shopForm.location.trim()) {
+      errors.location = "Location is required";
+    }
+
+    if (Number(shopForm.minimumBoxesPerDay) < 0) {
+      errors.minimumBoxesPerDay = "Minimum boxes cannot be negative";
+    }
+
+    if (Number(shopForm.defaultBoxPrice) < 0) {
+      errors.defaultBoxPrice = "Box price cannot be negative";
+    }
+
+    if (Number(shopForm.shopkeeperSellingPrice) < 0) {
+      errors.shopkeeperSellingPrice = "Selling price cannot be negative";
+    }
+
+    if (
+      shopForm.phoneNumber.trim() &&
+      !/^[0-9]{10}$/.test(shopForm.phoneNumber.trim())
+    ) {
+      errors.phoneNumber = "Phone number must be exactly 10 digits";
+    }
+
+    if (
+      shopForm.email.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(shopForm.email.trim())
+    ) {
+      errors.email = "Enter a valid email address";
+    }
+
+    return errors;
+  };
+
   const editShop = (customer: any) => {
+    setShopFieldErrors({});
     setShopForm({
       id: String(customer.id || ""),
       customerName: customer.customerName || "",
@@ -324,22 +415,25 @@ export default function SalesPage() {
 
   const saveShop = async () => {
     try {
-      if (
-        shopForm.phoneNumber.trim() &&
-        !/^[0-9]{10}$/.test(shopForm.phoneNumber.trim())
-      ) {
-        alert("Phone number must be exactly 10 digits");
+      const validationErrors = validateShopForm();
+
+      if (Object.keys(validationErrors).length > 0) {
+        setShopFieldErrors(validationErrors);
+        showBanner({
+          tone: "error",
+          message: "Please fix the highlighted shop setup fields.",
+        });
         return;
       }
 
       const payload = {
-        customerName: shopForm.customerName,
-        contactPerson: shopForm.contactPerson,
-        phoneNumber: shopForm.phoneNumber,
-        email: shopForm.email,
-        address: shopForm.address,
-        location: shopForm.location,
-        shopCategory: shopForm.shopCategory,
+        customerName: shopForm.customerName.trim(),
+        contactPerson: optionalText(shopForm.contactPerson),
+        phoneNumber: optionalText(shopForm.phoneNumber),
+        email: optionalText(shopForm.email),
+        address: optionalText(shopForm.address),
+        location: optionalText(shopForm.location),
+        shopCategory: shopForm.shopCategory.trim(),
         minimumBoxesPerDay: Number(shopForm.minimumBoxesPerDay) || 0,
         defaultBoxPrice: Number(shopForm.defaultBoxPrice) || 0,
         shopkeeperSellingPrice: Number(shopForm.shopkeeperSellingPrice) || 0,
@@ -351,23 +445,24 @@ export default function SalesPage() {
 
       if (shopForm.id) {
         await api.put(`/api/customers/${shopForm.id}`, payload);
-        setBanner({
+        showBanner({
           tone: "success",
           message: "Shop updated successfully.",
         });
       } else {
         await api.post("/api/customers", payload);
-        setBanner({
+        showBanner({
           tone: "success",
           message: "Shop created successfully.",
         });
       }
 
       setShopForm(emptyShopForm);
+      setShopFieldErrors({});
       await loadData();
     } catch (error: any) {
       console.error(error);
-      setBanner({
+      showBanner({
         tone: "error",
         message: error?.response?.data?.message || "Failed to save shop.",
       });
@@ -386,7 +481,7 @@ export default function SalesPage() {
       if (String(shopForm.id) === String(shopToDelete.id)) {
         setShopForm(emptyShopForm);
       }
-      setBanner({
+      showBanner({
         tone: "success",
         message: `${shopName} deleted successfully.`,
       });
@@ -394,7 +489,7 @@ export default function SalesPage() {
     } catch (error: any) {
       console.error(error);
       setShopToDelete(null);
-      setBanner({
+      showBanner({
         tone: "error",
         message: error?.response?.data?.message || "Failed to delete shop.",
       });
@@ -456,17 +551,19 @@ export default function SalesPage() {
         remarks: saleForm.remarks,
       });
 
-      setBanner({
+      showBanner({
         tone: "success",
-        message: "Sale created successfully.",
+        message: deliverySuccessMessage(),
       });
       setSaleForm(emptySaleForm);
       await loadData();
     } catch (error: any) {
       console.error(error);
-      setBanner({
+      showBanner({
         tone: "error",
-        message: error?.response?.data?.message || "Failed to create sale.",
+        message:
+          error?.response?.data?.message ||
+          "Failed to save delivery sale.",
       });
     }
   };
@@ -526,7 +623,7 @@ export default function SalesPage() {
       });
 
       closePaymentEditor();
-      setBanner({
+      showBanner({
         tone: "success",
         message: markPaid
           ? `${customerName}'s sale marked as paid.`
@@ -536,7 +633,7 @@ export default function SalesPage() {
     } catch (error: any) {
       console.error(error);
       closePaymentEditor();
-      setBanner({
+      showBanner({
         tone: "error",
         message: error?.response?.data?.message || "Failed to update payment.",
       });
@@ -562,12 +659,17 @@ export default function SalesPage() {
       />
 
       {banner && (
-        <div className={`admin-feedback-banner admin-feedback-${banner.tone}`}>
-          <strong>{banner.tone === "success" ? "Success" : "Failed"}</strong>
-          <span>{banner.message}</span>
-          <button type="button" onClick={() => setBanner(null)}>
-            x
-          </button>
+        <div className="admin-feedback-overlay" role="status" aria-live="polite">
+          <div
+            className={`admin-feedback-dialog admin-feedback-${banner.tone}`}
+            ref={bannerRef}
+          >
+            <strong>{banner.tone === "success" ? "Success" : "Failed"}</strong>
+            <span>{banner.message}</span>
+            <button type="button" onClick={() => setBanner(null)}>
+              Close
+            </button>
+          </div>
         </div>
       )}
 
@@ -590,7 +692,11 @@ export default function SalesPage() {
           subtitle="Create and maintain active shops. Super admin can softly delete a shop without losing history."
         >
           <div className="admin-form-grid">
-            <Field label="Shop Name">
+            <Field
+              label="Shop Name"
+              required
+              error={shopFieldErrors.customerName}
+            >
               <input
                 value={shopForm.customerName}
                 onChange={(event) =>
@@ -599,7 +705,11 @@ export default function SalesPage() {
               />
             </Field>
 
-            <Field label="Shop Category">
+            <Field
+              label="Shop Category"
+              required
+              error={shopFieldErrors.shopCategory}
+            >
               <input
                 list="shop-categories"
                 value={shopForm.shopCategory}
@@ -615,7 +725,7 @@ export default function SalesPage() {
               </datalist>
             </Field>
 
-            <Field label="Products" span="full">
+            <Field label="Products" span="full" optional>
               <div className="admin-multiselect">
                 <div className="admin-chip-row">
                   {shopProductOptions.map((productName) => (
@@ -675,7 +785,11 @@ export default function SalesPage() {
               </div>
             </Field>
 
-            <Field label="Location">
+            <Field
+              label="Location"
+              required
+              error={shopFieldErrors.location}
+            >
               <input
                 value={shopForm.location}
                 onChange={(event) =>
@@ -684,7 +798,11 @@ export default function SalesPage() {
               />
             </Field>
 
-            <Field label="Minimum Boxes / Day">
+            <Field
+              label="Minimum Boxes / Day"
+              required
+              error={shopFieldErrors.minimumBoxesPerDay}
+            >
               <input
                 type="number"
                 value={shopForm.minimumBoxesPerDay}
@@ -694,7 +812,7 @@ export default function SalesPage() {
               />
             </Field>
 
-            <Field label="Returned Boxes / Day">
+            <Field label="Returned Boxes / Day" optional>
               <input
                 type="number"
                 value={shopForm.dailyReturnedBoxes}
@@ -704,7 +822,11 @@ export default function SalesPage() {
               />
             </Field>
 
-            <Field label="Box Price">
+            <Field
+              label="Box Price"
+              required
+              error={shopFieldErrors.defaultBoxPrice}
+            >
               <input
                 type="number"
                 value={shopForm.defaultBoxPrice}
@@ -714,7 +836,11 @@ export default function SalesPage() {
               />
             </Field>
 
-            <Field label="Shopkeeper Selling Price">
+            <Field
+              label="Shopkeeper Selling Price"
+              required
+              error={shopFieldErrors.shopkeeperSellingPrice}
+            >
               <input
                 type="number"
                 value={shopForm.shopkeeperSellingPrice}
@@ -724,7 +850,7 @@ export default function SalesPage() {
               />
             </Field>
 
-            <Field label="Exchange Type">
+            <Field label="Exchange Type" required>
               <select
                 value={shopForm.exchangeType}
                 onChange={(event) =>
@@ -739,7 +865,7 @@ export default function SalesPage() {
               </select>
             </Field>
 
-            <Field label="Contact Person">
+            <Field label="Contact Person" optional>
               <input
                 value={shopForm.contactPerson}
                 onChange={(event) =>
@@ -748,7 +874,7 @@ export default function SalesPage() {
               />
             </Field>
 
-            <Field label="Phone">
+            <Field label="Phone" optional error={shopFieldErrors.phoneNumber}>
               <input
                 inputMode="numeric"
                 maxLength={10}
@@ -762,14 +888,14 @@ export default function SalesPage() {
               />
             </Field>
 
-            <Field label="Email">
+            <Field label="Email" optional error={shopFieldErrors.email}>
               <input
                 value={shopForm.email}
                 onChange={(event) => updateShopField("email", event.target.value)}
               />
             </Field>
 
-            <Field label="Address">
+            <Field label="Address" optional>
               <input
                 value={shopForm.address}
                 onChange={(event) =>

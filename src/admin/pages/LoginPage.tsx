@@ -322,6 +322,10 @@ export default function LoginPage({
   return (
     <div className="login-page">
       <div className="login-card">
+        <a className="login-back-link" href="/">
+          Back to website
+        </a>
+
         <img src={logo} alt="Samaksh" className="logo" />
 
         <h1>Samaksh Farms ERP</h1>

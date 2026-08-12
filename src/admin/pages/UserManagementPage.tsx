@@ -65,6 +65,7 @@ export default function UserManagementPage() {
   );
   const [pendingRoles, setPendingRoles] = useState<Record<string, string[]>>({});
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
   const [banner, setBanner] = useState<BannerState>(null);
   const [openRolePickerUserId, setOpenRolePickerUserId] = useState<string | null>(
     null,
@@ -76,6 +77,18 @@ export default function UserManagementPage() {
   useEffect(() => {
     loadUsers();
   }, []);
+
+  useEffect(() => {
+    if (!banner) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setBanner(null);
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [banner]);
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -126,6 +139,7 @@ export default function UserManagementPage() {
     setOpenRolePickerUserId(null);
     setRolePickerPosition(null);
     setBanner(null);
+    setConfirmSubmitting(false);
     setConfirmAction(action);
   };
 
@@ -134,29 +148,34 @@ export default function UserManagementPage() {
       return;
     }
 
+    const action = confirmAction;
+    setConfirmSubmitting(true);
+    setConfirmAction(null);
+
     try {
-      const resultMessage = await confirmAction.run();
-      setConfirmAction(null);
+      const resultMessage = await action.run();
       setBanner({
         tone: "success",
-        message: resultMessage || confirmAction.successMessage,
+        message: resultMessage || action.successMessage,
       });
-      await loadUsers();
+      loadUsers();
     } catch (error: any) {
       console.error(error);
-      setConfirmAction(null);
       setBanner({
         tone: "error",
         message:
+          readableApiError(error) ||
           error?.response?.data?.message ||
           error?.message ||
           "Unable to complete the action",
       });
+    } finally {
+      setConfirmSubmitting(false);
     }
   };
 
   const approveUser = (user: any) => {
-    const nextRoles = rolesForUser(user);
+    const nextRoles = validRolesForUser(user);
 
     askToConfirm({
       title: "Approve this user?",
@@ -164,11 +183,8 @@ export default function UserManagementPage() {
       confirmLabel: "Approve User",
       successMessage: `${user.name} approved successfully.`,
       run: async () => {
-        await api.put(`/api/users/${user.id}/approve`, {
-          role: nextRoles[0] || "SALES_EMPLOYEE",
-          roles: nextRoles,
-          active: true,
-        });
+        const response = await api.put(`/api/users/${user.id}/approve`, {});
+        return response?.data?.message;
       },
     });
   };
@@ -187,7 +203,7 @@ export default function UserManagementPage() {
   };
 
   const saveRoles = (user: any) => {
-    const nextRoles = rolesForUser(user);
+    const nextRoles = validRolesForUser(user);
 
     askToConfirm({
       title: "Save access changes?",
@@ -197,10 +213,10 @@ export default function UserManagementPage() {
       confirmLabel: "Save Access",
       successMessage: `${user.name}'s access updated successfully.`,
       run: async () => {
-        await api.put(`/api/users/${user.id}/role`, {
-          role: nextRoles[0] || "SALES_EMPLOYEE",
+        const response = await api.put(`/api/users/${user.id}/role`, {
           roles: nextRoles,
         });
+        return response?.data?.message;
       },
     });
   };
@@ -267,6 +283,12 @@ export default function UserManagementPage() {
   const rolesForUser = (user: any) =>
     pendingRoles[String(user.id)] || allUserRoles(user);
 
+  const validRolesForUser = (user: any) => {
+    const nextRoles = rolesForUser(user).filter((role) => roles.includes(role));
+
+    return nextRoles.length > 0 ? nextRoles : ["SALES_EMPLOYEE"];
+  };
+
   const toggleRolePicker = (userId: string, button: HTMLButtonElement) => {
     setOpenRolePickerUserId((current) => {
       if (current === userId) {
@@ -294,12 +316,14 @@ export default function UserManagementPage() {
       />
 
       {banner && (
-        <div className={`admin-feedback-banner admin-feedback-${banner.tone}`}>
-          <strong>{banner.tone === "success" ? "Success" : "Failed"}</strong>
-          <span>{banner.message}</span>
-          <button type="button" onClick={() => setBanner(null)}>
-            x
-          </button>
+        <div className="admin-feedback-overlay" role="status" aria-live="polite">
+          <div className={`admin-feedback-dialog admin-feedback-${banner.tone}`}>
+            <strong>{banner.tone === "success" ? "Success" : "Failed"}</strong>
+            <span>{banner.message}</span>
+            <button type="button" onClick={() => setBanner(null)}>
+              Close
+            </button>
+          </div>
         </div>
       )}
 
@@ -542,6 +566,7 @@ export default function UserManagementPage() {
               <button
                 className="admin-button admin-button-secondary"
                 type="button"
+                disabled={confirmSubmitting}
                 onClick={() => setConfirmAction(null)}
               >
                 No
@@ -551,9 +576,10 @@ export default function UserManagementPage() {
                   confirmAction.danger ? "admin-button-danger" : ""
                 }`}
                 type="button"
+                disabled={confirmSubmitting}
                 onClick={executeConfirmAction}
               >
-                Yes, {confirmAction.confirmLabel}
+                {confirmSubmitting ? "Saving..." : `Yes, ${confirmAction.confirmLabel}`}
               </button>
             </div>
           </div>
@@ -617,7 +643,13 @@ function allUserRoles(user: any) {
     ? user.roles
     : [user.role || "SALES_EMPLOYEE"];
 
-  return Array.from(new Set(userRoles.map(String)));
+  const cleanRoles = userRoles
+    .map((role) => String(role || "").trim().toUpperCase())
+    .filter((role) => roles.includes(role));
+
+  return cleanRoles.length > 0
+    ? Array.from(new Set(cleanRoles))
+    : ["SALES_EMPLOYEE"];
 }
 
 function formatRoleList(userRoles: string[]) {
@@ -630,4 +662,14 @@ function formatRole(role: string) {
     .split("_")
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function readableApiError(error: any) {
+  const data = error?.response?.data?.data;
+
+  if (data && typeof data === "object") {
+    return Object.values(data).filter(Boolean).join(", ");
+  }
+
+  return "";
 }

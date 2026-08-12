@@ -12,6 +12,7 @@ const lockedButtons = new Map<HTMLButtonElement, number>();
 const pendingButtonTimers = new WeakMap<HTMLButtonElement, number>();
 let pendingActionButton: HTMLButtonElement | null = null;
 let lockSequence = 0;
+let activeMutationCount = 0;
 
 if (typeof document !== "undefined") {
   document.addEventListener(
@@ -130,6 +131,8 @@ function attachMutationGuard(config: any) {
 
   inFlightMutations.add(mutationKey);
   config.__mutationKey = mutationKey;
+  activeMutationCount += 1;
+  showRequestOverlay();
 
   if (pendingActionButton) {
     config.__actionButton = pendingActionButton;
@@ -146,6 +149,8 @@ function releaseMutationGuard(config: any) {
 
   if (config.__mutationKey) {
     inFlightMutations.delete(config.__mutationKey);
+    activeMutationCount = Math.max(0, activeMutationCount - 1);
+    hideRequestOverlayWhenIdle();
   }
 
   if (config.__actionButton) {
@@ -242,6 +247,41 @@ function clearPendingButtonTimer(button: HTMLButtonElement) {
 
   window.clearTimeout(timer);
   pendingButtonTimers.delete(button);
+}
+
+function showRequestOverlay() {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  let overlay = document.getElementById("admin-request-overlay");
+
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "admin-request-overlay";
+    overlay.className = "admin-request-overlay";
+    overlay.innerHTML = `
+      <div class="admin-request-dialog" role="status" aria-live="polite">
+        <span class="admin-request-spinner"></span>
+        <strong>Saving...</strong>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  }
+
+  overlay.removeAttribute("hidden");
+}
+
+function hideRequestOverlayWhenIdle() {
+  if (typeof document === "undefined" || activeMutationCount > 0) {
+    return;
+  }
+
+  const overlay = document.getElementById("admin-request-overlay");
+
+  if (overlay) {
+    overlay.setAttribute("hidden", "true");
+  }
 }
 
 export default api;

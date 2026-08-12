@@ -27,6 +27,9 @@ type FieldProps = {
   label: string;
   children: ReactNode;
   span?: "full";
+  required?: boolean;
+  optional?: boolean;
+  error?: string;
 };
 
 type StatusPillProps = {
@@ -99,11 +102,27 @@ export function StatCard({
   );
 }
 
-export function Field({ label, children, span }: FieldProps) {
+export function Field({
+  label,
+  children,
+  span,
+  required,
+  optional,
+  error,
+}: FieldProps) {
   return (
-    <label className={`admin-field ${span === "full" ? "admin-field-full" : ""}`}>
-      <span>{label}</span>
+    <label
+      className={`admin-field ${span === "full" ? "admin-field-full" : ""} ${
+        error ? "admin-field-invalid" : ""
+      }`}
+    >
+      <span>
+        {label}
+        {required && <em className="admin-field-required">Required</em>}
+        {optional && <em className="admin-field-optional">Optional</em>}
+      </span>
       {children}
+      {error && <small>{error}</small>}
     </label>
   );
 }

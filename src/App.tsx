@@ -17,6 +17,7 @@ import UserManagementPage from "./admin/pages/UserManagementPage";
 import AuditTrailPage from "./admin/pages/AuditTrailPage";
 import VerifyEmailPage from "./admin/pages/VerifyEmailPage";
 import ServerKeepAlivePage from "./admin/pages/ServerKeepAlivePage";
+import ReviewManagementPage from "./admin/pages/ReviewManagementPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import RoleBasedRoute from "./routes/RoleProtectedRoute";
 import { useEffect } from "react";
@@ -152,6 +153,15 @@ export default function App() {
           element={
             <RoleBasedRoute allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN"]}>
               <AuditTrailPage />
+            </RoleBasedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/reviews"
+          element={
+            <RoleBasedRoute allowedRoles={["SUPER_ADMIN"]}>
+              <ReviewManagementPage />
             </RoleBasedRoute>
           }
         />
