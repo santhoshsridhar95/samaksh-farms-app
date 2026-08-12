@@ -34,11 +34,19 @@ export default function LoginPage({
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"error" | "success">("error");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [emailVerificationEnabled, setEmailVerificationEnabled] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     pingServerOnLoginPage();
+    loadAuthConfig();
   }, []);
+
+  useEffect(() => {
+    if (!emailVerificationEnabled && mode === "verify") {
+      switchMode("login");
+    }
+  }, [emailVerificationEnabled, mode]);
 
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID || mode === "forgot" || mode === "verify") {
@@ -126,18 +134,24 @@ export default function LoginPage({
       setLoading(true);
 
       if (mode === "signup") {
-        await api.post("/api/auth/signup", {
+        const response = await api.post("/api/auth/signup", {
           name,
           email: loginId,
           phoneNumber,
           password,
         });
 
-        setMode("verify");
+        setMode(emailVerificationEnabled ? "verify" : "login");
         setName("");
         setPhoneNumber("");
         setPassword("");
-        showMessage("OTP sent. Verify your email before super admin approval.", "success");
+        showMessage(
+          response?.data?.message ||
+            (emailVerificationEnabled
+              ? "OTP sent. Verify your email before super admin approval."
+              : "Signup submitted for super admin approval."),
+          "success",
+        );
         return;
       }
 
@@ -249,6 +263,17 @@ export default function LoginPage({
     setMessageTone(tone);
   };
 
+  const loadAuthConfig = async () => {
+    try {
+      const response = await api.get("/api/auth/config");
+      setEmailVerificationEnabled(
+        Boolean(response?.data?.data?.emailVerificationEnabled),
+      );
+    } catch {
+      setEmailVerificationEnabled(false);
+    }
+  };
+
   const switchMode = (nextMode: LoginMode) => {
     setMode(nextMode);
     setMessage("");
@@ -341,7 +366,7 @@ export default function LoginPage({
           </div>
         )}
 
-        {mode === "verify" && (
+        {emailVerificationEnabled && mode === "verify" && (
           <div className="login-field-group">
             <div className={`field ${fieldErrors.otp ? "field-invalid" : ""}`}>
               <Mail size={18} />
@@ -369,7 +394,7 @@ export default function LoginPage({
               placeholder={
                 mode === "signup" || mode === "verify"
                   ? "Email address"
-                  : "Email or phone"
+                  : "Login via email ID or mobile number"
               }
               value={loginId}
               onChange={(event) => updateLoginId(event.target.value)}

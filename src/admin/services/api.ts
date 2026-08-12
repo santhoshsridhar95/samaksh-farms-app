@@ -8,8 +8,10 @@ const api = axios.create({
 });
 
 const inFlightMutations = new Set<string>();
-const lockedButtons = new Set<HTMLButtonElement>();
+const lockedButtons = new Map<HTMLButtonElement, number>();
+const pendingButtonTimers = new WeakMap<HTMLButtonElement, number>();
 let pendingActionButton: HTMLButtonElement | null = null;
+let lockSequence = 0;
 
 if (typeof document !== "undefined") {
   document.addEventListener(
@@ -22,6 +24,39 @@ if (typeof document !== "undefined") {
       }
 
       pendingActionButton = target.closest("button");
+      if (!pendingActionButton || pendingActionButton.disabled) {
+        return;
+      }
+
+      lockButton(pendingActionButton);
+
+      const button = pendingActionButton;
+      const timer = window.setTimeout(() => {
+        pendingButtonTimers.delete(button);
+
+        if (pendingActionButton === button) {
+          pendingActionButton = null;
+        }
+
+        if (button.dataset.apiMutationPending !== "true") {
+          unlockButton(button);
+        }
+      }, 750);
+
+      pendingButtonTimers.set(button, timer);
+
+      window.setTimeout(() => {
+        if (pendingActionButton === button) {
+          pendingActionButton = null;
+        }
+      }, 0);
+    },
+    true,
+  );
+
+  document.addEventListener(
+    "submit",
+    () => {
       window.setTimeout(() => {
         pendingActionButton = null;
       }, 0);
@@ -98,6 +133,8 @@ function attachMutationGuard(config: any) {
 
   if (pendingActionButton) {
     config.__actionButton = pendingActionButton;
+    pendingActionButton.dataset.apiMutationPending = "true";
+    clearPendingButtonTimer(pendingActionButton);
     lockButton(pendingActionButton);
   }
 }
@@ -112,6 +149,7 @@ function releaseMutationGuard(config: any) {
   }
 
   if (config.__actionButton) {
+    delete config.__actionButton.dataset.apiMutationPending;
     unlockButton(config.__actionButton);
   }
 }
@@ -133,7 +171,7 @@ function mutationRequestKey(config: any) {
 }
 
 function stableSerialize(value: unknown): string {
-  if (!value) {
+  if (value === null || value === undefined) {
     return "";
   }
 
@@ -142,10 +180,33 @@ function stableSerialize(value: unknown): string {
   }
 
   try {
-    return JSON.stringify(value, Object.keys(value as object).sort());
+    return JSON.stringify(sortForStableSerialization(value));
   } catch {
     return String(value);
   }
+}
+
+function sortForStableSerialization(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortForStableSerialization);
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nestedValue]) => [
+          key,
+          sortForStableSerialization(nestedValue),
+        ]),
+    );
+  }
+
+  return value;
 }
 
 function lockButton(button: HTMLButtonElement) {
@@ -153,7 +214,10 @@ function lockButton(button: HTMLButtonElement) {
     return;
   }
 
-  lockedButtons.add(button);
+  if (!lockedButtons.has(button)) {
+    lockedButtons.set(button, ++lockSequence);
+  }
+
   button.disabled = true;
   button.setAttribute("aria-busy", "true");
 }
@@ -163,9 +227,21 @@ function unlockButton(button: HTMLButtonElement) {
     return;
   }
 
+  clearPendingButtonTimer(button);
   lockedButtons.delete(button);
   button.disabled = false;
   button.removeAttribute("aria-busy");
+}
+
+function clearPendingButtonTimer(button: HTMLButtonElement) {
+  const timer = pendingButtonTimers.get(button);
+
+  if (!timer) {
+    return;
+  }
+
+  window.clearTimeout(timer);
+  pendingButtonTimers.delete(button);
 }
 
 export default api;

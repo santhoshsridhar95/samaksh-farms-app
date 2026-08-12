@@ -86,6 +86,10 @@ type BoxAllocation = {
   shortageBoxes: number;
   surplusBoxes: number;
 };
+type BannerState = {
+  tone: "success" | "error";
+  message: string;
+} | null;
 
 export default function SalesPage() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -106,6 +110,7 @@ export default function SalesPage() {
   const [allocationBoxCount, setAllocationBoxCount] = useState("100");
   const [shopForm, setShopForm] = useState<ShopForm>(emptyShopForm);
   const [saleForm, setSaleForm] = useState<SaleForm>(emptySaleForm);
+  const [banner, setBanner] = useState<BannerState>(null);
 
   const role = localStorage.getItem("role");
   const hasPermission = (permission: string) =>
@@ -346,17 +351,26 @@ export default function SalesPage() {
 
       if (shopForm.id) {
         await api.put(`/api/customers/${shopForm.id}`, payload);
-        alert("Shop updated successfully");
+        setBanner({
+          tone: "success",
+          message: "Shop updated successfully.",
+        });
       } else {
         await api.post("/api/customers", payload);
-        alert("Shop created successfully");
+        setBanner({
+          tone: "success",
+          message: "Shop created successfully.",
+        });
       }
 
       setShopForm(emptyShopForm);
-      loadData();
+      await loadData();
     } catch (error: any) {
       console.error(error);
-      alert(error?.response?.data?.message || "Failed to save shop");
+      setBanner({
+        tone: "error",
+        message: error?.response?.data?.message || "Failed to save shop.",
+      });
     }
   };
 
@@ -366,15 +380,24 @@ export default function SalesPage() {
     }
 
     try {
+      const shopName = shopToDelete.customerName;
       await api.delete(`/api/customers/${shopToDelete.id}`);
       setShopToDelete(null);
       if (String(shopForm.id) === String(shopToDelete.id)) {
         setShopForm(emptyShopForm);
       }
-      loadData();
+      setBanner({
+        tone: "success",
+        message: `${shopName} deleted successfully.`,
+      });
+      await loadData();
     } catch (error: any) {
       console.error(error);
-      alert(error?.response?.data?.message || "Failed to delete shop");
+      setShopToDelete(null);
+      setBanner({
+        tone: "error",
+        message: error?.response?.data?.message || "Failed to delete shop.",
+      });
     }
   };
 
@@ -433,12 +456,18 @@ export default function SalesPage() {
         remarks: saleForm.remarks,
       });
 
-      alert("Sale created successfully");
+      setBanner({
+        tone: "success",
+        message: "Sale created successfully.",
+      });
       setSaleForm(emptySaleForm);
-      loadData();
+      await loadData();
     } catch (error: any) {
       console.error(error);
-      alert(error?.response?.data?.message || "Failed to create sale");
+      setBanner({
+        tone: "error",
+        message: error?.response?.data?.message || "Failed to create sale.",
+      });
     }
   };
 
@@ -490,17 +519,27 @@ export default function SalesPage() {
     }
 
     try {
+      const customerName = paymentSale.customerName;
       await api.put(`/api/sales/${paymentSale.id}/payment`, {
         amountCollected: nextCollected,
         remarks: paymentRemarks,
       });
 
-      alert(markPaid ? "Sale marked as paid" : "Payment updated successfully");
       closePaymentEditor();
-      loadData();
+      setBanner({
+        tone: "success",
+        message: markPaid
+          ? `${customerName}'s sale marked as paid.`
+          : `${customerName}'s payment updated successfully.`,
+      });
+      await loadData();
     } catch (error: any) {
       console.error(error);
-      alert(error?.response?.data?.message || "Failed to update payment");
+      closePaymentEditor();
+      setBanner({
+        tone: "error",
+        message: error?.response?.data?.message || "Failed to update payment.",
+      });
     }
   };
 
@@ -521,6 +560,16 @@ export default function SalesPage() {
           </button>
         ) : null}
       />
+
+      {banner && (
+        <div className={`admin-feedback-banner admin-feedback-${banner.tone}`}>
+          <strong>{banner.tone === "success" ? "Success" : "Failed"}</strong>
+          <span>{banner.message}</span>
+          <button type="button" onClick={() => setBanner(null)}>
+            x
+          </button>
+        </div>
+      )}
 
       <div className="admin-tabbar" role="tablist" aria-label="Sales sections">
         {tabs.map((tab) => (

@@ -1159,6 +1159,12 @@ input {
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.16);
 }
 
+.admin-role-picker-menu-floating {
+  position: absolute;
+  z-index: 90;
+  margin-top: 0;
+}
+
 .admin-role-picker-menu label {
   display: flex;
   align-items: center;
@@ -1186,6 +1192,42 @@ input {
   min-height: 32px;
   padding: 0 12px;
   font-size: 12px;
+}
+
+.admin-feedback-banner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.admin-feedback-banner strong {
+  font-size: 13px;
+}
+
+.admin-feedback-banner span {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.admin-feedback-banner button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.admin-feedback-error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
 }
 
 .admin-button:hover,

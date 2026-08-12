@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -40,8 +41,20 @@ type ConfirmAction = {
   title: string;
   body: string;
   confirmLabel: string;
+  successMessage: string;
   danger?: boolean;
-  run: () => Promise<void>;
+  run: () => Promise<string | void>;
+};
+
+type BannerState = {
+  tone: "success" | "error";
+  message: string;
+} | null;
+
+type RolePickerPosition = {
+  top: number;
+  left: number;
+  width: number;
 };
 
 export default function UserManagementPage() {
@@ -52,9 +65,12 @@ export default function UserManagementPage() {
   );
   const [pendingRoles, setPendingRoles] = useState<Record<string, string[]>>({});
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [banner, setBanner] = useState<BannerState>(null);
   const [openRolePickerUserId, setOpenRolePickerUserId] = useState<string | null>(
     null,
   );
+  const [rolePickerPosition, setRolePickerPosition] =
+    useState<RolePickerPosition | null>(null);
   const rolePickerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -68,12 +84,14 @@ export default function UserManagementPage() {
         !rolePickerRef.current.contains(event.target as Node)
       ) {
         setOpenRolePickerUserId(null);
+        setRolePickerPosition(null);
       }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpenRolePickerUserId(null);
+        setRolePickerPosition(null);
       }
     };
 
@@ -106,6 +124,8 @@ export default function UserManagementPage() {
 
   const askToConfirm = (action: ConfirmAction) => {
     setOpenRolePickerUserId(null);
+    setRolePickerPosition(null);
+    setBanner(null);
     setConfirmAction(action);
   };
 
@@ -114,9 +134,25 @@ export default function UserManagementPage() {
       return;
     }
 
-    await confirmAction.run();
-    setConfirmAction(null);
-    loadUsers();
+    try {
+      const resultMessage = await confirmAction.run();
+      setConfirmAction(null);
+      setBanner({
+        tone: "success",
+        message: resultMessage || confirmAction.successMessage,
+      });
+      await loadUsers();
+    } catch (error: any) {
+      console.error(error);
+      setConfirmAction(null);
+      setBanner({
+        tone: "error",
+        message:
+          error?.response?.data?.message ||
+          error?.message ||
+          "Unable to complete the action",
+      });
+    }
   };
 
   const approveUser = (user: any) => {
@@ -126,6 +162,7 @@ export default function UserManagementPage() {
       title: "Approve this user?",
       body: `${user.name} will be approved with ${formatRoleList(nextRoles)} access.`,
       confirmLabel: "Approve User",
+      successMessage: `${user.name} approved successfully.`,
       run: async () => {
         await api.put(`/api/users/${user.id}/approve`, {
           role: nextRoles[0] || "SALES_EMPLOYEE",
@@ -141,6 +178,7 @@ export default function UserManagementPage() {
       title: "Reject this user?",
       body: `${user.name}'s signup/access request will be rejected and login will stay disabled.`,
       confirmLabel: "Reject User",
+      successMessage: `${user.name} rejected successfully.`,
       danger: true,
       run: async () => {
         await api.put(`/api/users/${user.id}/reject`);
@@ -157,6 +195,7 @@ export default function UserManagementPage() {
         allUserRoles(user),
       )} to ${formatRoleList(nextRoles)}.`,
       confirmLabel: "Save Access",
+      successMessage: `${user.name}'s access updated successfully.`,
       run: async () => {
         await api.put(`/api/users/${user.id}/role`, {
           role: nextRoles[0] || "SALES_EMPLOYEE",
@@ -178,6 +217,7 @@ export default function UserManagementPage() {
       title: "Reset this password?",
       body: `${user.name}'s password will be changed. The user can log in with the new password after this is saved.`,
       confirmLabel: "Reset Password",
+      successMessage: `${user.name}'s password reset successfully.`,
       run: async () => {
         await api.put(`/api/users/${user.id}/reset-password`, { password });
         setResetPasswords((current) => ({
@@ -193,6 +233,7 @@ export default function UserManagementPage() {
       title: "Delete this user?",
       body: `${user.name} will be soft deleted. Login will be disabled and the record will be hidden, but audit history remains.`,
       confirmLabel: "Delete User",
+      successMessage: `${user.name} deleted successfully.`,
       danger: true,
       run: async () => {
         await api.delete(`/api/users/${user.id}`);
@@ -215,6 +256,7 @@ export default function UserManagementPage() {
 
   const clearPendingRoles = (user: any) => {
     setOpenRolePickerUserId(null);
+    setRolePickerPosition(null);
     setPendingRoles((current) => {
       const next = { ...current };
       delete next[String(user.id)];
@@ -225,6 +267,24 @@ export default function UserManagementPage() {
   const rolesForUser = (user: any) =>
     pendingRoles[String(user.id)] || allUserRoles(user);
 
+  const toggleRolePicker = (userId: string, button: HTMLButtonElement) => {
+    setOpenRolePickerUserId((current) => {
+      if (current === userId) {
+        setRolePickerPosition(null);
+        return null;
+      }
+
+      const rect = button.getBoundingClientRect();
+      setRolePickerPosition({
+        top: rect.bottom + window.scrollY + 6,
+        left: rect.left + window.scrollX,
+        width: Math.max(rect.width, 260),
+      });
+
+      return userId;
+    });
+  };
+
   return (
     <AdminLayout>
       <PageHeader
@@ -232,6 +292,16 @@ export default function UserManagementPage() {
         title="Users & Approvals"
         subtitle="Create users, approve signups, assign multiple access roles, and handle password reset requests."
       />
+
+      {banner && (
+        <div className={`admin-feedback-banner admin-feedback-${banner.tone}`}>
+          <strong>{banner.tone === "success" ? "Success" : "Failed"}</strong>
+          <span>{banner.message}</span>
+          <button type="button" onClick={() => setBanner(null)}>
+            x
+          </button>
+        </div>
+      )}
 
       <Panel
         title="Create User"
@@ -344,37 +414,28 @@ export default function UserManagementPage() {
                             }`}
                             type="button"
                             aria-expanded={openRolePickerUserId === userId}
-                            onClick={() =>
-                              setOpenRolePickerUserId((current) =>
-                                current === userId ? null : userId,
+                            onClick={(event) =>
+                              toggleRolePicker(
+                                userId,
+                                event.currentTarget,
                               )
                             }
                           >
                             {formatRoleList(selectedRoles)}
                           </button>
 
-                          {openRolePickerUserId === userId && (
-                            <div className="admin-role-picker-menu">
-                            {roles.map((role) => (
-                              <label key={role}>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedRoles.includes(role)}
-                                  onChange={() => togglePendingRole(user, role)}
-                                />
-                                <span>{formatRole(role)}</span>
-                              </label>
-                            ))}
-                              <div className="admin-role-picker-footer">
-                                <button
-                                  className="admin-button admin-button-secondary"
-                                  type="button"
-                                  onClick={() => setOpenRolePickerUserId(null)}
-                                >
-                                  Done
-                                </button>
-                              </div>
-                            </div>
+                          {openRolePickerUserId === userId && rolePickerPosition && (
+                            <RolePickerMenu
+                              position={rolePickerPosition}
+                              roles={roles}
+                              selectedRoles={selectedRoles}
+                              onToggle={(role) => togglePendingRole(user, role)}
+                              onDone={() => {
+                                setOpenRolePickerUserId(null);
+                                setRolePickerPosition(null);
+                              }}
+                              menuRef={rolePickerRef}
+                            />
                           )}
                         </div>
 
@@ -499,6 +560,55 @@ export default function UserManagementPage() {
         </div>
       )}
     </AdminLayout>
+  );
+}
+
+function RolePickerMenu({
+  position,
+  roles,
+  selectedRoles,
+  onToggle,
+  onDone,
+  menuRef,
+}: {
+  position: RolePickerPosition;
+  roles: string[];
+  selectedRoles: string[];
+  onToggle: (role: string) => void;
+  onDone: () => void;
+  menuRef: RefObject<HTMLDivElement | null>;
+}) {
+  return createPortal(
+    <div
+      className="admin-role-picker-menu admin-role-picker-menu-floating"
+      ref={menuRef}
+      style={{
+        top: position.top,
+        left: position.left,
+        width: position.width,
+      }}
+    >
+      {roles.map((role) => (
+        <label key={role}>
+          <input
+            type="checkbox"
+            checked={selectedRoles.includes(role)}
+            onChange={() => onToggle(role)}
+          />
+          <span>{formatRole(role)}</span>
+        </label>
+      ))}
+      <div className="admin-role-picker-footer">
+        <button
+          className="admin-button admin-button-secondary"
+          type="button"
+          onClick={onDone}
+        >
+          Done
+        </button>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
