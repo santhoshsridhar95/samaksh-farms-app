@@ -123,12 +123,16 @@ export default function SalesPage() {
   const [paymentReceived, setPaymentReceived] = useState("");
   const [paymentRemarks, setPaymentRemarks] = useState("");
   const [allocationBoxCount, setAllocationBoxCount] = useState("100");
+  const [editingShopId, setEditingShopId] = useState<string | null>(null);
+  const [deletingShop, setDeletingShop] = useState(false);
   const [shopForm, setShopForm] = useState<ShopForm>(emptyShopForm);
   const [saleForm, setSaleForm] = useState<SaleForm>(emptySaleForm);
   const [banner, setBanner] = useState<BannerState>(null);
   const [shopFieldErrors, setShopFieldErrors] = useState<ShopFieldErrors>({});
   const [saleFieldErrors, setSaleFieldErrors] = useState<SaleFieldErrors>({});
   const bannerRef = useRef<HTMLDivElement | null>(null);
+  const shopFormRef = useRef<HTMLDivElement | null>(null);
+  const shopNameInputRef = useRef<HTMLInputElement | null>(null);
 
   const role = localStorage.getItem("role");
   const hasPermission = (permission: string) =>
@@ -172,8 +176,14 @@ export default function SalesPage() {
       setPaymentSale(null);
       setPaymentReceived("");
       setPaymentRemarks("");
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      showBanner({
+        tone: "error",
+        message:
+          error?.response?.data?.message ||
+          "Failed to load sales setup data. Please refresh or check access.",
+      });
     }
   };
 
@@ -477,9 +487,13 @@ export default function SalesPage() {
   };
 
   const editShop = (customer: any) => {
+    const customerId = String(customer.id || "");
+
+    setEditingShopId(customerId);
     setShopFieldErrors({});
+    setActiveTab("shops");
     setShopForm({
-      id: String(customer.id || ""),
+      id: customerId,
       customerName: customer.customerName || "",
       contactPerson: customer.contactPerson || "",
       phoneNumber: customer.phoneNumber || "",
@@ -495,6 +509,18 @@ export default function SalesPage() {
       products: normalizeShopProducts(customer.products),
       active: customer.active ?? true,
     });
+    showBanner({
+      tone: "success",
+      message: `${customer.customerName || "Shop"} loaded for editing.`,
+    });
+    window.setTimeout(() => {
+      shopFormRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      shopNameInputRef.current?.focus();
+      setEditingShopId(null);
+    }, 0);
   };
 
   const saveShop = async () => {
@@ -554,11 +580,12 @@ export default function SalesPage() {
   };
 
   const deleteShop = async () => {
-    if (!shopToDelete) {
+    if (!shopToDelete || deletingShop) {
       return;
     }
 
     try {
+      setDeletingShop(true);
       const shopName = shopToDelete.customerName;
       await api.delete(`/api/customers/${shopToDelete.id}`);
       setShopToDelete(null);
@@ -577,6 +604,8 @@ export default function SalesPage() {
         tone: "error",
         message: error?.response?.data?.message || "Failed to delete shop.",
       });
+    } finally {
+      setDeletingShop(false);
     }
   };
 
@@ -801,10 +830,18 @@ export default function SalesPage() {
       </div>
 
       {canManageShops && activeTab === "shops" && (
+        <div ref={shopFormRef}>
         <Panel
           title={shopForm.id ? "Edit Shop" : "Admin Shop Setup"}
           subtitle="Create and maintain active shops. Super admin can softly delete a shop without losing history."
         >
+          {shopForm.id && (
+            <div className="sales-edit-context">
+              <Pencil size={15} />
+              Editing {shopForm.customerName || "selected shop"}. Update the
+              required fields below and click Update Shop.
+            </div>
+          )}
           <div className="admin-form-grid">
             <Field
               label="Shop Name"
@@ -812,6 +849,7 @@ export default function SalesPage() {
               error={shopFieldErrors.customerName}
             >
               <input
+                ref={shopNameInputRef}
                 value={shopForm.customerName}
                 onChange={(event) =>
                   updateShopField("customerName", event.target.value)
@@ -1024,6 +1062,7 @@ export default function SalesPage() {
             </button>
           </div>
         </Panel>
+        </div>
       )}
 
       {canCreateDelivery && activeTab === "delivery" && (
@@ -1373,15 +1412,21 @@ export default function SalesPage() {
                           className="admin-icon-button"
                           type="button"
                           title="Edit shop"
+                          disabled={editingShopId === String(customer.id)}
                           onClick={() => editShop(customer)}
                         >
-                          <Pencil size={16} />
+                          {editingShopId === String(customer.id) ? (
+                            <span className="admin-request-spinner" />
+                          ) : (
+                            <Pencil size={16} />
+                          )}
                         </button>
                         {canDeleteShops && (
                           <button
                             className="admin-icon-button admin-icon-danger"
                             type="button"
                             title="Delete shop"
+                            disabled={deletingShop}
                             onClick={() => setShopToDelete(customer)}
                           >
                             <Trash2 size={16} />
@@ -1709,18 +1754,19 @@ export default function SalesPage() {
               <AlertTriangle size={22} />
             </div>
             <div>
-              <h2>Delete this shop?</h2>
+              <h2>Are you sure you want to delete this shop?</h2>
               <p>
                 This will soft delete{" "}
                 <strong>{shopToDelete.customerName}</strong>. It will no longer
                 appear in delivery entry or shop master, but its sales and audit
-                history will remain available.
+                history will remain available. Please confirm before deleting.
               </p>
             </div>
             <div className="admin-confirm-actions">
               <button
                 className="admin-button admin-button-secondary"
                 type="button"
+                disabled={deletingShop}
                 onClick={() => setShopToDelete(null)}
               >
                 Cancel
@@ -1728,9 +1774,10 @@ export default function SalesPage() {
               <button
                 className="admin-button admin-button-danger"
                 type="button"
+                disabled={deletingShop}
                 onClick={deleteShop}
               >
-                Delete Shop
+                {deletingShop ? "Deleting..." : "Yes, Delete Shop"}
               </button>
             </div>
           </div>

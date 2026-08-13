@@ -2778,6 +2778,20 @@ input {
   line-height: 1.45;
 }
 
+.sales-edit-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .sales-table-wrap {
   overflow-x: auto;
 }
