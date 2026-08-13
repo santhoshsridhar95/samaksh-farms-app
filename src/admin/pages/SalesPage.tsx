@@ -91,6 +91,7 @@ type BannerState = {
   message: string;
 } | null;
 type ShopFieldErrors = Partial<Record<keyof ShopForm, string>>;
+type SaleFieldErrors = Partial<Record<keyof SaleForm, string>>;
 
 const deliverySuccessMessages = [
   "Nice. One delivery down. Keep the route hot and the next shop smiling.",
@@ -126,6 +127,7 @@ export default function SalesPage() {
   const [saleForm, setSaleForm] = useState<SaleForm>(emptySaleForm);
   const [banner, setBanner] = useState<BannerState>(null);
   const [shopFieldErrors, setShopFieldErrors] = useState<ShopFieldErrors>({});
+  const [saleFieldErrors, setSaleFieldErrors] = useState<SaleFieldErrors>({});
   const bannerRef = useRef<HTMLDivElement | null>(null);
 
   const role = localStorage.getItem("role");
@@ -182,6 +184,26 @@ export default function SalesPage() {
       ),
     [customers, saleForm.customerId],
   );
+  const activeProducts = useMemo(
+    () => products.filter((product) => product.active !== false),
+    [products],
+  );
+
+  useEffect(() => {
+    if (saleForm.productId || activeProducts.length === 0) {
+      return;
+    }
+
+    const defaultProduct =
+      productForShop(selectedShop, activeProducts) || activeProducts[0];
+
+    setSaleForm((current) => ({
+      ...current,
+      productId: String(defaultProduct.id),
+      unitPrice:
+        current.unitPrice || String(defaultProduct.standardPrice ?? "50"),
+    }));
+  }, [activeProducts, saleForm.productId, selectedShop]);
 
   const selectedShopBalance = useMemo(
     () => calculateShopBalance(sales, Number(saleForm.customerId)),
@@ -337,6 +359,40 @@ export default function SalesPage() {
       ...current,
       [field]: value,
     }));
+    setSaleFieldErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const updateSaleProduct = (productId: string) => {
+    const product = activeProducts.find(
+      (item) => String(item.id) === String(productId),
+    );
+
+    setSaleForm((current) => ({
+      ...current,
+      productId,
+      unitPrice:
+        product?.standardPrice !== null &&
+        product?.standardPrice !== undefined
+          ? String(product.standardPrice)
+          : current.unitPrice,
+    }));
+    setSaleFieldErrors((current) => {
+      if (!current.productId) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next.productId;
+      return next;
+    });
   };
 
   const showBanner = (nextBanner: Exclude<BannerState, null>) => {
@@ -387,6 +443,34 @@ export default function SalesPage() {
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(shopForm.email.trim())
     ) {
       errors.email = "Enter a valid email address";
+    }
+
+    return errors;
+  };
+
+  const validateSaleForm = (
+    form: SaleForm,
+    productOptions: any[],
+  ) => {
+    const errors: SaleFieldErrors = {};
+
+    if (!form.customerId) {
+      errors.customerId = "Shop is required";
+    }
+
+    if (!form.productId) {
+      errors.productId =
+        productOptions.length === 0
+          ? "Create at least one active product before delivery entry"
+          : "Product is required";
+    }
+
+    if ((Number(form.quantity) || 0) <= 0) {
+      errors.quantity = "Boxes must be greater than 0";
+    }
+
+    if ((Number(form.unitPrice) || 0) < 0) {
+      errors.unitPrice = "Unit price cannot be negative";
     }
 
     return errors;
@@ -501,16 +585,32 @@ export default function SalesPage() {
       (customer) => String(customer.id) === String(customerId),
     );
     const latestSale = latestSaleForShop(sales, Number(customerId));
+    const shopDefaultProduct = productForShop(shop, activeProducts);
+    const selectedProduct = latestSale?.productId
+      ? activeProducts.find(
+          (product) => String(product.id) === String(latestSale.productId),
+        )
+      : shopDefaultProduct || activeProducts[0];
 
     setSaleForm((current) => ({
       ...current,
       customerId,
       productId:
-        String(latestSale?.productId || current.productId || products[0]?.id || ""),
+        String(
+          latestSale?.productId ||
+            shopDefaultProduct?.id ||
+            activeProducts[0]?.id ||
+            "",
+        ),
       quantity: String(
         latestSale?.quantity ?? shop?.minimumBoxesPerDay ?? current.quantity,
       ),
-      unitPrice: String(latestSale?.unitPrice ?? shop?.defaultBoxPrice ?? "50"),
+      unitPrice: String(
+        latestSale?.unitPrice ??
+          selectedProduct?.standardPrice ??
+          shop?.defaultBoxPrice ??
+          "50",
+      ),
       shopkeeperSellingPrice: String(
         latestSale?.shopkeeperSellingPrice ??
           shop?.shopkeeperSellingPrice ??
@@ -532,6 +632,20 @@ export default function SalesPage() {
 
   const createSale = async () => {
     try {
+      const validationErrors = validateSaleForm(
+        saleForm,
+        activeProducts,
+      );
+
+      if (Object.keys(validationErrors).length > 0) {
+        setSaleFieldErrors(validationErrors);
+        showBanner({
+          tone: "error",
+          message: "Please fix the highlighted delivery fields.",
+        });
+        return;
+      }
+
       if (amountReceivedToday > selectedShopBalance + totalAmount) {
         alert("Amount received cannot be greater than current balance plus today's bill");
         return;
@@ -539,7 +653,7 @@ export default function SalesPage() {
 
       await api.post("/api/sales", {
         customerId: Number(saleForm.customerId),
-        productId: Number(saleForm.productId || products[0]?.id),
+        productId: Number(saleForm.productId),
         quantity: Number(saleForm.quantity),
         unitPrice: Number(saleForm.unitPrice),
         amountCollected: Number(saleForm.amountCollected) || 0,
@@ -951,7 +1065,7 @@ export default function SalesPage() {
             )}
           </Field>
 
-          <Field label="Shop">
+          <Field label="Shop" required error={saleFieldErrors.customerId}>
             <select
               className={saleForm.customerId ? "is-shop-selected" : ""}
               value={saleForm.customerId}
@@ -986,13 +1100,17 @@ export default function SalesPage() {
         )}
 
         <div className="admin-form-grid">
-          <Field label="Product">
+          <Field label="Product" required error={saleFieldErrors.productId}>
             <select
               value={saleForm.productId}
-              onChange={(event) => updateSaleField("productId", event.target.value)}
+              onChange={(event) => updateSaleProduct(event.target.value)}
             >
-              <option value="">Select product</option>
-              {products.map((product) => (
+              <option value="">
+                {activeProducts.length === 0
+                  ? "No products available"
+                  : "Select product"}
+              </option>
+              {activeProducts.map((product) => (
                 <option key={product.id} value={product.id}>
                   {product.productName}
                 </option>
@@ -1000,7 +1118,7 @@ export default function SalesPage() {
             </select>
           </Field>
 
-          <Field label="Boxes">
+          <Field label="Boxes" required error={saleFieldErrors.quantity}>
             <input
               type="number"
               value={saleForm.quantity}
@@ -1008,7 +1126,7 @@ export default function SalesPage() {
             />
           </Field>
 
-          <Field label="Unit Price">
+          <Field label="Unit Price" required error={saleFieldErrors.unitPrice}>
             <input
               type="number"
               value={saleForm.unitPrice}
@@ -1624,6 +1742,36 @@ export default function SalesPage() {
 
 function latestSaleForShop(sales: any[], customerId: number) {
   return sales.find((sale) => Number(sale.customerId) === customerId);
+}
+
+function productForShop(shop: any, products: any[]) {
+  const shopProducts = normalizeShopProducts(shop?.products);
+
+  if (shopProducts.length === 0) {
+    return products.find((product) =>
+      normalizedProductName(product.productName).includes("oyster"),
+    );
+  }
+
+  return products.find((product) => {
+    const catalogName = normalizedProductName(product.productName);
+
+    return shopProducts.some((shopProduct) => {
+      const shopName = normalizedProductName(shopProduct);
+
+      return catalogName === shopName ||
+        catalogName.includes(shopName) ||
+        shopName.includes(catalogName);
+    });
+  });
+}
+
+function normalizedProductName(value?: string) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/mushrooms/g, "mushroom")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function salePending(sale: any) {
