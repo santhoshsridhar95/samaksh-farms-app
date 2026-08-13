@@ -44,6 +44,13 @@ const shopProductOptions = [
   "Paneer",
 ];
 
+const ownerOptions = [
+  "Santhosh",
+  "Partner 1",
+  "Partner 2",
+  "Partner 3",
+];
+
 const emptyShopForm = {
   id: "",
   customerName: "",
@@ -76,8 +83,19 @@ const emptySaleForm = {
   remarks: "",
 };
 
+const emptyHandoverForm = {
+  id: "",
+  collectorUserId: "",
+  collectorName: "",
+  collectorEmail: "",
+  ownerName: "",
+  amount: "",
+  remarks: "",
+};
+
 type ShopForm = typeof emptyShopForm;
 type SaleForm = typeof emptySaleForm;
+type HandoverForm = typeof emptyHandoverForm;
 type BoxAllocation = {
   shopId: number | string;
   shopName: string;
@@ -127,6 +145,10 @@ export default function SalesPage() {
   const [allCustomers, setAllCustomers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
+  const [cashLedger, setCashLedger] = useState<any>({
+    summaries: [],
+    handovers: [],
+  });
   const [shopSearch, setShopSearch] = useState("");
   const [shopSearchOpen, setShopSearchOpen] = useState(false);
   const [customProductName, setCustomProductName] = useState("");
@@ -141,8 +163,11 @@ export default function SalesPage() {
   const [allocationBoxCount, setAllocationBoxCount] = useState("100");
   const [editingShopId, setEditingShopId] = useState<string | null>(null);
   const [deletingShop, setDeletingShop] = useState(false);
+  const [savingHandover, setSavingHandover] = useState(false);
   const [shopForm, setShopForm] = useState<ShopForm>(emptyShopForm);
   const [saleForm, setSaleForm] = useState<SaleForm>(emptySaleForm);
+  const [handoverForm, setHandoverForm] =
+    useState<HandoverForm>(emptyHandoverForm);
   const [banner, setBanner] = useState<BannerState>(null);
   const [shopFieldErrors, setShopFieldErrors] = useState<ShopFieldErrors>({});
   const [saleFieldErrors, setSaleFieldErrors] = useState<SaleFieldErrors>({});
@@ -189,12 +214,17 @@ export default function SalesPage() {
       const productResponse = await api.get("/api/products");
       const salesResponse = await api.get("/api/sales?size=1000");
       const entitlementResponse = await api.get("/api/entitlements/me");
+      const cashLedgerResponse = await api.get("/api/cash-handovers");
 
       setCustomers(customerResponse?.data?.data?.content || []);
       setAllCustomers(allCustomerResponse?.data?.data?.content || []);
       setProducts(productResponse.data.data || []);
       setSales(salesResponse?.data?.data?.content || []);
       setPermissions(entitlementResponse?.data?.data?.permissions || []);
+      setCashLedger(cashLedgerResponse?.data?.data || {
+        summaries: [],
+        handovers: [],
+      });
       setPaymentSale(null);
       setPaymentReceived("");
       setPaymentRemarks("");
@@ -342,6 +372,7 @@ export default function SalesPage() {
         canCreateDelivery && { id: "delivery", label: "Delivery Entry" },
         canCreateDelivery && { id: "allocation", label: "Box Allocation" },
         canManageShops && { id: "shops", label: "Shop Setup" },
+        canViewLedger && { id: "collections", label: "Collections" },
         canViewLedger && { id: "ledger", label: "Sales Ledger" },
         canViewLedger && { id: "history", label: "Shop History" },
       ].filter(Boolean) as { id: string; label: string }[],
@@ -420,38 +451,21 @@ export default function SalesPage() {
     });
   };
 
-  const updateSaleProduct = (productValue: string) => {
+  const updateSaleProduct = (productName: string) => {
+    const normalizedName = normalizedProductName(productName);
     const product = deliveryProductOptions.find(
-      (item) => optionValueForProduct(item) === productValue,
+      (item) => normalizedProductName(item.productName) === normalizedName,
     );
 
     setSaleForm((current) => ({
       ...current,
       productId: product?.id ? String(product.id) : "",
-      productName: product?.productName || "",
+      productName,
       unitPrice:
         product?.standardPrice !== null &&
         product?.standardPrice !== undefined
           ? String(product.standardPrice)
           : current.unitPrice,
-    }));
-    setSaleFieldErrors((current) => {
-      if (!current.productId && !current.productName) {
-        return current;
-      }
-
-      const next = { ...current };
-      delete next.productId;
-      delete next.productName;
-      return next;
-    });
-  };
-
-  const updateManualSaleProduct = (productName: string) => {
-    setSaleForm((current) => ({
-      ...current,
-      productId: "",
-      productName,
     }));
     setSaleFieldErrors((current) => {
       if (!current.productId && !current.productName) {
@@ -495,6 +509,10 @@ export default function SalesPage() {
 
     if (Number(shopForm.defaultBoxPrice) < 0) {
       errors.defaultBoxPrice = "Box price cannot be negative";
+    }
+
+    if (Number(shopForm.dailyReturnedBoxes) < 0) {
+      errors.dailyReturnedBoxes = "Returned boxes cannot be negative";
     }
 
     if (Number(shopForm.shopkeeperSellingPrice) < 0) {
@@ -541,6 +559,23 @@ export default function SalesPage() {
 
     if ((Number(form.unitPrice) || 0) < 0) {
       errors.unitPrice = "Unit price cannot be negative";
+    }
+
+    if ((Number(form.amountCollected) || 0) < 0) {
+      errors.amountCollected = "Collected amount cannot be negative";
+    }
+
+    if ((Number(form.shopkeeperSellingPrice) || 0) < 0) {
+      errors.shopkeeperSellingPrice =
+        "Shopkeeper selling price cannot be negative";
+    }
+
+    if ((Number(form.exchangeBoxes) || 0) < 0) {
+      errors.exchangeBoxes = "Exchange boxes cannot be negative";
+    }
+
+    if ((Number(form.returnedBoxes) || 0) < 0) {
+      errors.returnedBoxes = "Returned boxes cannot be negative";
     }
 
     return errors;
@@ -865,6 +900,99 @@ export default function SalesPage() {
     }
   };
 
+  const startCashHandover = (summary: any) => {
+    setHandoverForm({
+      ...emptyHandoverForm,
+      collectorUserId: summary.collectorUserId
+        ? String(summary.collectorUserId)
+        : "",
+      collectorName: summary.collectorName || "",
+      collectorEmail: summary.collectorEmail || "",
+      amount:
+        Number(summary.balanceWithUser) > 0
+          ? String(summary.balanceWithUser)
+          : "",
+    });
+  };
+
+  const editCashHandover = (handover: any) => {
+    setHandoverForm({
+      id: String(handover.id || ""),
+      collectorUserId: handover.collectorUserId
+        ? String(handover.collectorUserId)
+        : "",
+      collectorName: handover.collectorName || "",
+      collectorEmail: handover.collectorEmail || "",
+      ownerName: handover.ownerName || "",
+      amount: String(handover.amount ?? ""),
+      remarks: handover.remarks || "",
+    });
+  };
+
+  const saveCashHandover = async () => {
+    if (savingHandover) {
+      return;
+    }
+
+    if (!handoverForm.collectorName.trim()) {
+      showBanner({ tone: "error", message: "Collector name is required." });
+      return;
+    }
+
+    if (!handoverForm.ownerName.trim()) {
+      showBanner({ tone: "error", message: "Owner name is required." });
+      return;
+    }
+
+    if ((Number(handoverForm.amount) || 0) <= 0) {
+      showBanner({
+        tone: "error",
+        message: "Handover amount must be greater than 0.",
+      });
+      return;
+    }
+
+    const payload = {
+      collectorUserId: handoverForm.collectorUserId
+        ? Number(handoverForm.collectorUserId)
+        : null,
+      collectorName: handoverForm.collectorName.trim(),
+      collectorEmail: optionalText(handoverForm.collectorEmail),
+      ownerName: handoverForm.ownerName.trim(),
+      amount: Number(handoverForm.amount),
+      remarks: optionalText(handoverForm.remarks),
+    };
+
+    try {
+      setSavingHandover(true);
+
+      if (handoverForm.id) {
+        await api.put(`/api/cash-handovers/${handoverForm.id}`, payload);
+      } else {
+        await api.post("/api/cash-handovers", payload);
+      }
+
+      showBanner({
+        tone: "success",
+        message: handoverForm.id
+          ? "Cash handover updated successfully."
+          : "Cash handover recorded successfully.",
+      });
+      setHandoverForm(emptyHandoverForm);
+      await loadData();
+    } catch (error: any) {
+      console.error(error);
+      showBanner({
+        tone: "error",
+        message:
+          error?.response?.data?.message ||
+          "Failed to save cash handover.",
+      });
+    } finally {
+      setSavingHandover(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <PageHeader
@@ -1046,7 +1174,11 @@ export default function SalesPage() {
               />
             </Field>
 
-            <Field label="Returned Boxes / Day" optional>
+            <Field
+              label="Returned Boxes / Day"
+              optional
+              error={shopFieldErrors.dailyReturnedBoxes}
+            >
               <input
                 type="number"
                 value={shopForm.dailyReturnedBoxes}
@@ -1222,35 +1354,24 @@ export default function SalesPage() {
 
         <div className="admin-form-grid">
           <Field label="Product" required error={saleFieldErrors.productId}>
-            <select
-              value={
-                saleForm.productId
-                  ? `id:${saleForm.productId}`
-                  : saleForm.productName
-                    ? `name:${saleForm.productName}`
-                    : ""
-              }
-              onChange={(event) => updateSaleProduct(event.target.value)}
-            >
-              <option value="">
-                {deliveryProductOptions.length === 0
-                  ? "Enter product manually"
-                  : "Select product"}
-              </option>
-              {deliveryProductOptions.map((product) => (
-                <option key={optionValueForProduct(product)} value={optionValueForProduct(product)}>
-                  {product.productName}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Manual Product" optional error={saleFieldErrors.productName}>
             <input
+              list="delivery-products"
               value={saleForm.productName}
-              onChange={(event) => updateManualSaleProduct(event.target.value)}
-              placeholder="Example: Oyster Mushroom"
+              onChange={(event) => updateSaleProduct(event.target.value)}
+              placeholder={
+                deliveryProductOptions.length === 0
+                  ? "Enter product"
+                  : "Select or type product"
+              }
             />
+            <datalist id="delivery-products">
+              {deliveryProductOptions.map((product) => (
+                <option
+                  key={optionValueForProduct(product)}
+                  value={product.productName}
+                />
+              ))}
+            </datalist>
           </Field>
 
           <Field label="Boxes" required error={saleFieldErrors.quantity}>
@@ -1281,7 +1402,7 @@ export default function SalesPage() {
             <input value={totalAmount} readOnly />
           </Field>
 
-          <Field label="Amount Received Today">
+          <Field label="Amount Received Today" error={saleFieldErrors.amountCollected}>
             <input
               type="number"
               value={saleForm.amountCollected}
@@ -1295,7 +1416,10 @@ export default function SalesPage() {
             <input value={pendingForThisSale} readOnly />
           </Field>
 
-          <Field label="Shopkeeper Selling Price">
+          <Field
+            label="Shopkeeper Selling Price"
+            error={saleFieldErrors.shopkeeperSellingPrice}
+          >
             <input
               type="number"
               value={saleForm.shopkeeperSellingPrice}
@@ -1320,7 +1444,7 @@ export default function SalesPage() {
             </select>
           </Field>
 
-          <Field label="Exchange Boxes">
+          <Field label="Exchange Boxes" error={saleFieldErrors.exchangeBoxes}>
             <input
               type="number"
               value={saleForm.exchangeBoxes}
@@ -1536,6 +1660,221 @@ export default function SalesPage() {
               </table>
             </div>
           )}
+        </Panel>
+      )}
+
+      {canViewLedger && activeTab === "collections" && (
+        <Panel
+          title="Collections"
+          subtitle="Track cash collected by each user and record how much was handed over to each owner."
+        >
+          <div className="admin-stat-grid">
+            <StatCard
+              label="Today Collected"
+              value={`Rs. ${sumBy(cashLedger.summaries, "todayCollected")}`}
+              icon={<IndianRupee size={20} />}
+              tone="green"
+            />
+            <StatCard
+              label="Total Collected"
+              value={`Rs. ${sumBy(cashLedger.summaries, "totalCollected")}`}
+              icon={<Receipt size={20} />}
+              tone="blue"
+            />
+            <StatCard
+              label="Handed Over"
+              value={`Rs. ${sumBy(cashLedger.summaries, "totalHandedOver")}`}
+              icon={<WalletCards size={20} />}
+              tone="violet"
+            />
+            <StatCard
+              label="With Users"
+              value={`Rs. ${sumBy(cashLedger.summaries, "balanceWithUser")}`}
+              icon={<Store size={20} />}
+              tone="amber"
+            />
+          </div>
+
+          <div className="sales-table-wrap">
+            <table className="admin-data-table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Today</th>
+                  <th>Total Collected</th>
+                  <th>Handed Over</th>
+                  <th>Balance With User</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(cashLedger.summaries || []).map((summary: any) => (
+                  <tr key={`${summary.collectorUserId || summary.collectorEmail || summary.collectorName}`}>
+                    <td>
+                      <strong>{summary.collectorName || "Unknown user"}</strong>
+                      <span>{summary.collectorEmail || "-"}</span>
+                    </td>
+                    <td>Rs. {summary.todayCollected ?? 0}</td>
+                    <td>Rs. {summary.totalCollected ?? 0}</td>
+                    <td>Rs. {summary.totalHandedOver ?? 0}</td>
+                    <td>Rs. {summary.balanceWithUser ?? 0}</td>
+                    <td>
+                      <button
+                        className="admin-action-button"
+                        type="button"
+                        onClick={() => startCashHandover(summary)}
+                      >
+                        <WalletCards size={15} />
+                        Handover
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {(cashLedger.summaries || []).length === 0 && (
+                  <tr>
+                    <td colSpan={6}>No collections recorded yet.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="admin-form-grid">
+            <Field label="Collector" required>
+              <input
+                value={handoverForm.collectorName}
+                onChange={(event) =>
+                  setHandoverForm((current) => ({
+                    ...current,
+                    collectorName: event.target.value,
+                  }))
+                }
+              />
+            </Field>
+            <Field label="Collector Email" optional>
+              <input
+                value={handoverForm.collectorEmail}
+                onChange={(event) =>
+                  setHandoverForm((current) => ({
+                    ...current,
+                    collectorEmail: event.target.value,
+                  }))
+                }
+              />
+            </Field>
+            <Field label="Given To Owner" required>
+              <input
+                list="owner-options"
+                value={handoverForm.ownerName}
+                onChange={(event) =>
+                  setHandoverForm((current) => ({
+                    ...current,
+                    ownerName: event.target.value,
+                  }))
+                }
+              />
+              <datalist id="owner-options">
+                {ownerOptions.map((ownerName) => (
+                  <option key={ownerName} value={ownerName} />
+                ))}
+              </datalist>
+            </Field>
+            <Field label="Amount" required>
+              <input
+                type="number"
+                min="0"
+                value={handoverForm.amount}
+                onChange={(event) =>
+                  setHandoverForm((current) => ({
+                    ...current,
+                    amount: event.target.value,
+                  }))
+                }
+              />
+            </Field>
+            <Field label="Note" optional>
+              <input
+                value={handoverForm.remarks}
+                onChange={(event) =>
+                  setHandoverForm((current) => ({
+                    ...current,
+                    remarks: event.target.value,
+                  }))
+                }
+              />
+            </Field>
+            <button
+              className="admin-button"
+              type="button"
+              onClick={saveCashHandover}
+              disabled={savingHandover}
+            >
+              <Save size={17} />
+              {savingHandover
+                ? "Saving..."
+                : handoverForm.id
+                  ? "Update Handover"
+                  : "Save Handover"}
+            </button>
+            {handoverForm.id && (
+              <button
+                className="admin-button admin-button-secondary"
+                type="button"
+                onClick={() => setHandoverForm(emptyHandoverForm)}
+              >
+                Cancel Edit
+              </button>
+            )}
+          </div>
+
+          <div className="sales-table-wrap">
+            <table className="admin-data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Collector</th>
+                  <th>Owner</th>
+                  <th>Amount</th>
+                  <th>Recorded By</th>
+                  <th>Note</th>
+                  <th>Edit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(cashLedger.handovers || []).map((handover: any) => (
+                  <tr key={handover.id}>
+                    <td>{formatDateTime(handover.handedOverAt)}</td>
+                    <td>
+                      <strong>{handover.collectorName}</strong>
+                      <span>{handover.collectorEmail || "-"}</span>
+                    </td>
+                    <td>{handover.ownerName}</td>
+                    <td>Rs. {handover.amount ?? 0}</td>
+                    <td>
+                      <strong>{auditName(handover.recordedByName)}</strong>
+                      <span>{handover.recordedByEmail || "-"}</span>
+                    </td>
+                    <td>{handover.remarks || "-"}</td>
+                    <td>
+                      <button
+                        className="admin-action-button"
+                        type="button"
+                        onClick={() => editCashHandover(handover)}
+                      >
+                        <Pencil size={15} />
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {(cashLedger.handovers || []).length === 0 && (
+                  <tr>
+                    <td colSpan={7}>No handovers recorded yet.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </Panel>
       )}
 
@@ -1966,6 +2305,13 @@ function salePending(sale: any) {
   return (Number(sale.totalAmount) || 0) - (Number(sale.amountCollected) || 0);
 }
 
+function sumBy(items: any[] = [], field: string) {
+  return items.reduce(
+    (total, item) => total + (Number(item?.[field]) || 0),
+    0,
+  );
+}
+
 function calculateShopBalance(sales: any[], customerId: number) {
   return sales
     .filter((sale) => Number(sale.customerId) === Number(customerId))
@@ -2129,7 +2475,9 @@ function formatDate(value?: string) {
     return "";
   }
 
-  return new Date(value).toLocaleDateString("en-IN");
+  return parseBusinessDate(value).toLocaleDateString("en-IN", {
+    timeZone: "Asia/Kolkata",
+  });
 }
 
 function formatDateTime(value?: string) {
@@ -2137,7 +2485,21 @@ function formatDateTime(value?: string) {
     return "-";
   }
 
-  return new Date(value).toLocaleString("en-IN");
+  return parseBusinessDate(value).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+  });
+}
+
+function parseBusinessDate(value?: string) {
+  if (!value) {
+    return new Date("");
+  }
+
+  const normalized = /([zZ]|[+-]\d{2}:?\d{2})$/.test(value)
+    ? value
+    : `${value}+05:30`;
+
+  return new Date(normalized);
 }
 
 function auditName(value?: string) {
