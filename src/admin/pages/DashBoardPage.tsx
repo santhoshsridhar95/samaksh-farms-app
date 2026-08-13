@@ -650,7 +650,7 @@ function rankSales({
   const endDate = endOfToday();
 
   const filteredSales = sales.filter((sale) => {
-    const saleDate = sale.saleDate ? new Date(sale.saleDate) : null;
+    const saleDate = sale.saleDate ? parseBusinessDate(sale.saleDate) : null;
     const matchesDate =
       period === "all" ||
       (saleDate && saleDate >= startDate && saleDate <= endDate);
@@ -752,7 +752,7 @@ function buildSalesSimulation(sales: any[]) {
   });
 
   const revenueByDate = sales.reduce<Record<string, number>>((result, sale) => {
-    const key = sale.saleDate ? dateKey(new Date(sale.saleDate)) : "";
+    const key = sale.saleDate ? dateKey(parseBusinessDate(sale.saleDate)) : "";
 
     if (!key) {
       return result;
@@ -772,6 +772,7 @@ function buildSalesSimulation(sales: any[]) {
 
     return {
       label: date.toLocaleDateString("en-IN", {
+        timeZone: "Asia/Kolkata",
         day: "2-digit",
         month: "short",
       }),
@@ -812,7 +813,7 @@ function buildSalesSimulation(sales: any[]) {
 
 function salesByShopForDate(sales: any[], key: string) {
   return sales.reduce<Record<string, number>>((result, sale) => {
-    const saleKey = sale.saleDate ? dateKey(new Date(sale.saleDate)) : "";
+    const saleKey = sale.saleDate ? dateKey(parseBusinessDate(sale.saleDate)) : "";
 
     if (saleKey !== key) {
       return result;
@@ -857,10 +858,11 @@ function pieGradient(segments: any[]) {
 function buildAuditDigest(logs: any[]) {
   const today = dateKey(new Date());
   const todaysLogs = logs
-    .filter((log) => log.createdAt && dateKey(new Date(log.createdAt)) === today)
+    .filter((log) => log.createdAt && dateKey(parseBusinessDate(log.createdAt)) === today)
     .sort(
       (first, second) =>
-        new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime(),
+        parseBusinessDate(second.createdAt).getTime() -
+        parseBusinessDate(first.createdAt).getTime(),
     );
 
   return {
@@ -876,7 +878,24 @@ function buildAuditDigest(logs: any[]) {
 }
 
 function dateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function parseBusinessDate(value?: string) {
+  if (!value) {
+    return new Date("");
+  }
+
+  const normalized = /([zZ]|[+-]\d{2}:?\d{2})$/.test(value)
+    ? value
+    : `${value}+05:30`;
+
+  return new Date(normalized);
 }
 
 function formatTime(value?: string) {
@@ -884,7 +903,8 @@ function formatTime(value?: string) {
     return "-";
   }
 
-  return new Date(value).toLocaleTimeString("en-IN", {
+  return parseBusinessDate(value).toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
     hour: "2-digit",
     minute: "2-digit",
   });

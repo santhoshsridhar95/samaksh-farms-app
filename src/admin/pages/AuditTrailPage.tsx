@@ -132,7 +132,17 @@ function formatDateTime(value?: string) {
     return "-";
   }
 
-  return new Date(value).toLocaleString("en-IN");
+  return parseBusinessDate(value).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+  });
+}
+
+function parseBusinessDate(value: string) {
+  const normalized = /([zZ]|[+-]\d{2}:?\d{2})$/.test(value)
+    ? value
+    : `${value}+05:30`;
+
+  return new Date(normalized);
 }
 
 function formatAction(value?: string) {

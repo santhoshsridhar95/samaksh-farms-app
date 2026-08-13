@@ -357,5 +357,7 @@ export default function ServerKeepAlivePage() {
 function formatDateTime(value: string): string;
 function formatDateTime(value: number): string;
 function formatDateTime(value: string | number) {
-  return new Date(value).toLocaleString("en-IN");
+  return new Date(value).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+  });
 }
