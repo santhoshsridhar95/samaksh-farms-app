@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import api from "../services/api";
-import { markSessionStarted } from "../../routes/authSession";
+import { defaultAdminPageForRoles, markSessionStarted } from "../../routes/authSession";
 import { GOOGLE_CLIENT_ID } from "../../config/api";
 import { pingServerOnLoginPage } from "../utils/serverKeepAlive";
 
@@ -250,12 +250,14 @@ export default function LoginPage({
 
     localStorage.setItem("token", data.token);
     localStorage.setItem("role", data.role);
-    localStorage.setItem("roles", JSON.stringify(data.roles || [data.role]));
+    const roles = data.roles || [data.role];
+
+    localStorage.setItem("roles", JSON.stringify(roles));
     localStorage.setItem("userName", data.name);
     localStorage.setItem("userId", String(data.userId));
     markSessionStarted();
 
-    window.location.href = "/admin/dashboard";
+    window.location.href = defaultAdminPageForRoles(roles);
   };
 
   const showMessage = (value: string, tone: "error" | "success") => {

@@ -26,7 +26,7 @@ export default function Sidebar() {
       to: "/admin/dashboard",
       label: "Dashboard",
       icon: LayoutDashboard,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN", "SALES_EMPLOYEE", "SALES_USER"],
+      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN"],
     },
     {
       to: "/admin/inventory",
@@ -83,10 +83,16 @@ export default function Sidebar() {
       roles: ["SUPER_ADMIN"],
     },
     {
+      to: "/admin/product-prices",
+      label: "Product Prices",
+      icon: IndianRupee,
+      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN"],
+    },
+    {
       to: "/admin/server",
       label: "Server",
       icon: Server,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN", "SALES_EMPLOYEE", "SALES_USER"],
+      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN"],
     },
   ];
 

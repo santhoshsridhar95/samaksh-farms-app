@@ -2,7 +2,7 @@
 
 import { Navigate } from "react-router-dom";
 import { AUTH_CONFIG } from "../config/authConfig";
-import { getActiveSession } from "./authSession";
+import { defaultAdminPageForRoles, getActiveSession } from "./authSession";
 
 type Props = {
   children: React.ReactNode;
@@ -33,7 +33,7 @@ export default function RoleBasedRoute({
 
     return (
       <Navigate
-        to={AUTH_CONFIG.defaultAdminPage}
+        to={defaultAdminPageForRoles(roles)}
         replace
       />
     );

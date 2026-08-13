@@ -47,6 +47,20 @@ export function markSessionStarted() {
   localStorage.setItem("loginAt", String(Date.now()));
 }
 
+export function defaultAdminPageForRoles(roles: string[]) {
+  const hasManagementRole = roles.some((role) =>
+    ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN", "LABOUR"].includes(role),
+  );
+
+  if (!hasManagementRole && roles.some((role) =>
+    ["SALES_EMPLOYEE", "SALES_USER"].includes(role),
+  )) {
+    return "/admin/sales";
+  }
+
+  return AUTH_CONFIG.defaultAdminPage;
+}
+
 function isJwtExpired(token: string) {
   const payload = decodeJwtPayload(token);
 

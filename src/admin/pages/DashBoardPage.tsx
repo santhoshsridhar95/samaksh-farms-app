@@ -35,6 +35,8 @@ export default function DashboardPage() {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [exchangeHandovers, setExchangeHandovers] = useState<any[]>([]);
+  const [receivingExchangeKey, setReceivingExchangeKey] = useState("");
   const [rankPeriod, setRankPeriod] = useState("day");
   const [rankLimit, setRankLimit] = useState("5");
   const [rankLocation, setRankLocation] = useState("ALL");
@@ -45,12 +47,19 @@ export default function DashboardPage() {
   }, []);
 
   const loadDashboard = async () => {
-    const [dashboardResponse, alertResponse, salesResponse, auditResponse] =
+    const [
+      dashboardResponse,
+      alertResponse,
+      salesResponse,
+      auditResponse,
+      exchangeHandoversResponse,
+    ] =
       await Promise.allSettled([
         api.get("/api/farm-dashboard"),
         api.get("/api/inventory-alerts"),
         api.get("/api/sales?size=1000"),
         api.get("/api/audit"),
+        api.get("/api/exchange-box-handovers"),
       ]);
 
     if (dashboardResponse.status === "fulfilled") {
@@ -78,6 +87,12 @@ export default function DashboardPage() {
       setAuditLogs(auditResponse.value?.data?.data || []);
     } else {
       setAuditLogs([]);
+    }
+
+    if (exchangeHandoversResponse.status === "fulfilled") {
+      setExchangeHandovers(exchangeHandoversResponse.value?.data?.data || []);
+    } else {
+      setExchangeHandovers([]);
     }
   };
 
@@ -114,6 +129,43 @@ export default function DashboardPage() {
     [rankedShops],
   );
   const auditDigest = useMemo(() => buildAuditDigest(auditLogs), [auditLogs]);
+  const exchangeAnalytics = useMemo(
+    () => buildExchangeBoxAnalytics(sales, exchangeHandovers),
+    [sales, exchangeHandovers],
+  );
+
+  const receiveExchangeBoxes = async (user: any) => {
+    const boxes = Number(user.outstanding) || 0;
+
+    if (boxes <= 0 || receivingExchangeKey) {
+      return;
+    }
+
+    const ownerName = window.prompt(
+      `Who received ${boxes} exchange boxes from ${user.name}?`,
+      "Santhosh",
+    );
+
+    if (!ownerName?.trim()) {
+      return;
+    }
+
+    setReceivingExchangeKey(user.key);
+
+    try {
+      await api.post("/api/exchange-box-handovers", {
+        collectorUserId: user.userId || null,
+        collectorName: user.name,
+        collectorEmail: user.email || null,
+        ownerName: ownerName.trim(),
+        boxes,
+        remarks: "Exchange boxes received by owner",
+      });
+      await loadDashboard();
+    } finally {
+      setReceivingExchangeKey("");
+    }
+  };
 
   if (!dashboard) {
     return (
@@ -420,6 +472,111 @@ export default function DashboardPage() {
             ))}
           </article>
         </div>
+      </Panel>
+
+      <Panel
+        title="Exchange Box Tracking"
+        subtitle="Boxes exchanged with shops, returned boxes, and boxes still with each employee."
+      >
+        <div className="admin-stat-grid">
+          <StatCard
+            label="Today Exchanged"
+            value={exchangeAnalytics.today.exchanged}
+            icon={<Package size={20} />}
+            tone="blue"
+            helper={`Yesterday: ${exchangeAnalytics.yesterday.exchanged}`}
+          />
+          <StatCard
+            label="Today Returned"
+            value={exchangeAnalytics.today.returned}
+            icon={<Warehouse size={20} />}
+            tone="green"
+            helper={`Yesterday: ${exchangeAnalytics.yesterday.returned}`}
+          />
+          <StatCard
+            label="With Employees"
+            value={exchangeAnalytics.totalOutstanding}
+            icon={<Users size={20} />}
+            tone="amber"
+            helper="Exchanged boxes not yet returned"
+            critical={exchangeAnalytics.totalOutstanding > 0}
+          />
+          <StatCard
+            label="Exchange Rate"
+            value={`${exchangeAnalytics.today.exchangeRate.toFixed(1)}%`}
+            icon={
+              exchangeAnalytics.exchangeRateDelta >= 0 ? (
+                <TrendingUp size={20} />
+              ) : (
+                <TrendingDown size={20} />
+              )
+            }
+            tone={exchangeAnalytics.exchangeRateDelta >= 0 ? "violet" : "slate"}
+            helper={`Yesterday: ${exchangeAnalytics.yesterday.exchangeRate.toFixed(1)}%`}
+          />
+        </div>
+
+        {exchangeAnalytics.userBalances.length === 0 && (
+          <EmptyState
+            title="No exchange boxes"
+            message="Employee exchange balances appear after delivery entries with exchange boxes."
+          />
+        )}
+
+        {exchangeAnalytics.userBalances.length > 0 && (
+          <div className="sales-table-wrap">
+            <table className="admin-data-table">
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Exchanged</th>
+                  <th>Returned</th>
+                  <th>Owner Received</th>
+                  <th>With Employee</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {exchangeAnalytics.userBalances.map((user) => (
+                  <tr key={user.key}>
+                    <td>
+                      <strong>{user.name}</strong>
+                      <span>{user.email || "-"}</span>
+                    </td>
+                    <td>{user.exchanged}</td>
+                    <td>{user.returned}</td>
+                    <td>{user.receivedByOwner}</td>
+                    <td>{user.outstanding}</td>
+                    <td>
+                      <StatusPill
+                        status={
+                          user.outstanding > 0
+                            ? "Boxes pending"
+                            : "Returned all"
+                        }
+                        tone={user.outstanding > 0 ? "warning" : "success"}
+                      />
+                    </td>
+                    <td>
+                      <button
+                        className="admin-action-button"
+                        type="button"
+                        disabled={
+                          user.outstanding <= 0 ||
+                          receivingExchangeKey === user.key
+                        }
+                        onClick={() => receiveExchangeBoxes(user)}
+                      >
+                        Receive
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Panel>
 
       <Panel
@@ -809,6 +966,177 @@ function buildSalesSimulation(sales: any[]) {
       .sort((first, second) => first.delta - second.delta)
       .slice(0, 5),
   };
+}
+
+function buildExchangeBoxAnalytics(sales: any[], handovers: any[]) {
+  const todayKey = dateKey(new Date());
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = dateKey(yesterday);
+  const lastSevenDays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - index));
+    return date;
+  });
+  const daily = sales.reduce<Record<string, any>>((result, sale) => {
+    const key = sale.saleDate ? dateKey(parseBusinessDate(sale.saleDate)) : "";
+
+    if (!key) {
+      return result;
+    }
+
+    const current =
+      result[key] ||
+      {
+        boxes: 0,
+        exchanged: 0,
+        returned: 0,
+      };
+
+    current.boxes += Number(sale.quantity) || 0;
+    current.exchanged += Number(sale.exchangeBoxes) || 0;
+    current.returned += Number(sale.returnedBoxes) || 0;
+    result[key] = current;
+    return result;
+  }, {});
+  const maxExchanged = Math.max(
+    1,
+    ...lastSevenDays.map((date) => Number(daily[dateKey(date)]?.exchanged) || 0),
+  );
+  const dailyTrend = lastSevenDays.map((date) => {
+    const key = dateKey(date);
+    const day = daily[key] || { boxes: 0, exchanged: 0, returned: 0 };
+
+    return {
+      label: date.toLocaleDateString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        day: "2-digit",
+        month: "short",
+      }),
+      boxes: Math.round(day.boxes || 0),
+      exchanged: Math.round(day.exchanged || 0),
+      returned: Math.round(day.returned || 0),
+      exchangeRate: percentOf(day.exchanged, day.boxes),
+      percentHeight: Math.max(4, ((day.exchanged || 0) / maxExchanged) * 100),
+    };
+  });
+  const today = summarizeExchangeDay(daily[todayKey]);
+  const yesterdaySummary = summarizeExchangeDay(daily[yesterdayKey]);
+  const userBalances = buildExchangeUserBalances(sales, handovers);
+
+  return {
+    today,
+    yesterday: yesterdaySummary,
+    exchangeRateDelta: today.exchangeRate - yesterdaySummary.exchangeRate,
+    totalOutstanding: userBalances.reduce(
+      (total, user) => total + user.outstanding,
+      0,
+    ),
+    dailyTrend,
+    userBalances,
+  };
+}
+
+function summarizeExchangeDay(day: any) {
+  const boxes = Math.round(Number(day?.boxes) || 0);
+  const exchanged = Math.round(Number(day?.exchanged) || 0);
+  const returned = Math.round(Number(day?.returned) || 0);
+
+  return {
+    boxes,
+    exchanged,
+    returned,
+    outstanding: Math.max(0, exchanged - returned),
+    exchangeRate: percentOf(exchanged, boxes),
+  };
+}
+
+function buildExchangeUserBalances(sales: any[], handovers: any[]) {
+  const grouped = sales.reduce<Record<string, any>>((result, sale) => {
+    const exchanged = Number(sale.exchangeBoxes) || 0;
+    const returned = Number(sale.returnedBoxes) || 0;
+
+    if (exchanged <= 0 && returned <= 0) {
+      return result;
+    }
+
+    const userId = sale.collectorUserId || sale.createdByUserId || "";
+    const email = sale.collectorEmail || sale.createdByEmail || "";
+    const name = sale.collectorName || sale.createdByName || "Unknown user";
+    const key = exchangeUserKey(userId, email, name);
+    const current =
+      result[key] ||
+      {
+        key,
+        userId,
+        name,
+        email,
+        exchanged: 0,
+        returned: 0,
+        receivedByOwner: 0,
+        outstanding: 0,
+      };
+
+    current.exchanged += exchanged;
+    current.returned += returned;
+    current.outstanding = Math.max(
+      0,
+      current.exchanged - current.returned - current.receivedByOwner,
+    );
+    result[key] = current;
+    return result;
+  }, {});
+
+  handovers.forEach((handover) => {
+    const userId = handover.collectorUserId || "";
+    const email = handover.collectorEmail || "";
+    const name = handover.collectorName || "Unknown user";
+    const key = exchangeUserKey(userId, email, name);
+    const current =
+      grouped[key] ||
+      {
+        key,
+        userId,
+        name,
+        email,
+        exchanged: 0,
+        returned: 0,
+        receivedByOwner: 0,
+        outstanding: 0,
+      };
+
+    current.receivedByOwner += Number(handover.boxes) || 0;
+    current.outstanding = Math.max(
+      0,
+      current.exchanged - current.returned - current.receivedByOwner,
+    );
+    grouped[key] = current;
+  });
+
+  return Object.values(grouped)
+    .map((user) => ({
+      ...user,
+      exchanged: Math.round(user.exchanged),
+      returned: Math.round(user.returned),
+      receivedByOwner: Math.round(user.receivedByOwner),
+      outstanding: Math.max(
+        0,
+        Math.round(user.exchanged - user.returned - user.receivedByOwner),
+      ),
+    }))
+    .sort((first, second) => second.outstanding - first.outstanding);
+}
+
+function exchangeUserKey(userId: string | number, email: string, name: string) {
+  return userId ? `id:${userId}` : email ? `email:${email}` : `name:${name}`;
+}
+
+function percentOf(value: number, total: number) {
+  if (!total) {
+    return 0;
+  }
+
+  return (Number(value || 0) / Number(total || 0)) * 100;
 }
 
 function salesByShopForDate(sales: any[], key: string) {

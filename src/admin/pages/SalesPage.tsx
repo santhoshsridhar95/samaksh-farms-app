@@ -4,9 +4,12 @@ import {
   AlertTriangle,
   Boxes,
   Calculator,
+  Copy,
   IndianRupee,
+  MapPinned,
   Pencil,
   Receipt,
+  Route,
   Save,
   Search,
   Store,
@@ -77,6 +80,9 @@ const emptySaleForm = {
   unitPrice: "",
   shopkeeperSellingPrice: "",
   amountCollected: "",
+  collectorUserId: "",
+  collectorName: "",
+  collectorEmail: "",
   exchangeType: "NONE",
   exchangeBoxes: "0",
   returnedBoxes: "0",
@@ -105,6 +111,15 @@ type BoxAllocation = {
   allocatedBoxes: number;
   shortageBoxes: number;
   surplusBoxes: number;
+};
+type RoutePlan = {
+  id: number;
+  label: string;
+  shops: BoxAllocation[];
+  totalBoxes: number;
+  totalStops: number;
+  locations: string[];
+  mapsUrl: string;
 };
 type BannerState = {
   tone: "success" | "error";
@@ -145,6 +160,7 @@ export default function SalesPage() {
   const [allCustomers, setAllCustomers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [cashLedger, setCashLedger] = useState<any>({
     summaries: [],
     handovers: [],
@@ -154,6 +170,7 @@ export default function SalesPage() {
   const [customProductName, setCustomProductName] = useState("");
   const [activeTab, setActiveTab] = useState("delivery");
   const [selectedHistoryShopId, setSelectedHistoryShopId] = useState("");
+  const [deliverySalesShopId, setDeliverySalesShopId] = useState("");
   const [historyPage, setHistoryPage] = useState(0);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [shopToDelete, setShopToDelete] = useState<any>(null);
@@ -161,6 +178,11 @@ export default function SalesPage() {
   const [paymentReceived, setPaymentReceived] = useState("");
   const [paymentRemarks, setPaymentRemarks] = useState("");
   const [allocationBoxCount, setAllocationBoxCount] = useState("100");
+  const [routeEmployeeCount, setRouteEmployeeCount] = useState("2");
+  const [routeOrigin, setRouteOrigin] = useState("Samaksh Farms, Bengaluru");
+  const [routeBalanceBoxes, setRouteBalanceBoxes] = useState(true);
+  const [routeGroupLocation, setRouteGroupLocation] = useState(true);
+  const [routeReduceBacktracking, setRouteReduceBacktracking] = useState(true);
   const [editingShopId, setEditingShopId] = useState<string | null>(null);
   const [deletingShop, setDeletingShop] = useState(false);
   const [savingHandover, setSavingHandover] = useState(false);
@@ -174,6 +196,9 @@ export default function SalesPage() {
   const bannerRef = useRef<HTMLDivElement | null>(null);
   const shopFormRef = useRef<HTMLDivElement | null>(null);
   const shopNameInputRef = useRef<HTMLInputElement | null>(null);
+  const deliveryFocusRef = useRef<HTMLDivElement | null>(null);
+  const deliveryEntryFormRef = useRef<HTMLDivElement | null>(null);
+  const deliveryShopSalesRef = useRef<HTMLDivElement | null>(null);
 
   const roles = useMemo(() => getStoredRoles(), []);
   const hasRole = (...allowedRoles: string[]) =>
@@ -182,6 +207,7 @@ export default function SalesPage() {
     hasRole("SUPER_ADMIN") || permissions.includes(permission);
   const isSalesAdmin = hasRole("SALES_ADMIN");
   const isSalesEmployee = hasRole("SALES_EMPLOYEE", "SALES_USER");
+  const isSuperAdmin = hasRole("SUPER_ADMIN");
   const canManageShops =
     isSalesAdmin || isSalesEmployee || hasPermission("sales.manage_shops");
   const canViewLedger = isSalesAdmin || hasPermission("sales.view_ledger");
@@ -215,11 +241,15 @@ export default function SalesPage() {
       const salesResponse = await api.get("/api/sales?size=1000");
       const entitlementResponse = await api.get("/api/entitlements/me");
       const cashLedgerResponse = await api.get("/api/cash-handovers");
+      const usersResponse = isSuperAdmin
+        ? await api.get("/api/users")
+        : null;
 
       setCustomers(customerResponse?.data?.data?.content || []);
       setAllCustomers(allCustomerResponse?.data?.data?.content || []);
       setProducts(productResponse.data.data || []);
       setSales(salesResponse?.data?.data?.content || []);
+      setUsers(usersResponse?.data?.data || []);
       setPermissions(entitlementResponse?.data?.data?.permissions || []);
       setCashLedger(cashLedgerResponse?.data?.data || {
         summaries: [],
@@ -249,6 +279,14 @@ export default function SalesPage() {
   const activeProducts = useMemo(
     () => products.filter((product) => product.active !== false),
     [products],
+  );
+  const activeUsers = useMemo(
+    () => users.filter((user) => user.active !== false),
+    [users],
+  );
+  const collectorUsers = useMemo(
+    () => activeUsers.filter((user) => !isBootstrapAdminUser(user)),
+    [activeUsers],
   );
   const deliveryProductOptions = useMemo(
     () => buildDeliveryProductOptions(selectedShop, activeProducts),
@@ -298,10 +336,7 @@ export default function SalesPage() {
     Math.max(0, amountReceivedToday - amountAppliedToOldBalance),
   );
   const pendingForThisSale = totalAmount - amountAppliedToThisSale;
-  const balanceAfterCollection = Math.max(
-    0,
-    selectedShopBalance + totalAmount - amountReceivedToday,
-  );
+  const moneyToCollectToday = selectedShopBalance + totalAmount;
 
   const filteredShops = customers.filter((customer) => {
     const searchable = [
@@ -325,6 +360,12 @@ export default function SalesPage() {
   const selectedHistorySales = sales.filter(
     (sale) => String(sale.customerId) === String(selectedHistoryShopId),
   );
+  const deliverySalesShop = allCustomers.find(
+    (customer) => String(customer.id) === String(deliverySalesShopId),
+  );
+  const deliveryShopSales = sales
+    .filter((sale) => String(sale.customerId) === String(deliverySalesShopId))
+    .slice(0, 5);
   const historyPageSize = 8;
   const historySalesPage = selectedHistorySales.slice(
     historyPage * historyPageSize,
@@ -364,6 +405,25 @@ export default function SalesPage() {
         },
       ),
     [boxAllocation],
+  );
+  const routePlans = useMemo(
+    () =>
+      buildRoutePlans({
+        allocations: boxAllocation,
+        employeeCount: Math.max(1, Math.floor(Number(routeEmployeeCount) || 1)),
+        origin: routeOrigin,
+        balanceBoxes: routeBalanceBoxes,
+        groupLocation: routeGroupLocation,
+        reduceBacktracking: routeReduceBacktracking,
+      }),
+    [
+      boxAllocation,
+      routeBalanceBoxes,
+      routeEmployeeCount,
+      routeGroupLocation,
+      routeOrigin,
+      routeReduceBacktracking,
+    ],
   );
 
   const tabs = useMemo(
@@ -732,6 +792,7 @@ export default function SalesPage() {
         )
       : shopDefaultProduct || activeProducts[0];
 
+    setDeliverySalesShopId(customerId);
     setSaleForm((current) => ({
       ...current,
       customerId,
@@ -765,7 +826,30 @@ export default function SalesPage() {
       exchangeBoxes: "0",
       returnedBoxes: "0",
       amountCollected: "",
+      collectorUserId: current.collectorUserId,
+      collectorName: current.collectorName,
+      collectorEmail: current.collectorEmail,
       remarks: "",
+    }));
+
+    window.setTimeout(() => {
+      (deliveryFocusRef.current || deliveryEntryFormRef.current)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  };
+
+  const updateSaleCollector = (userId: string) => {
+    const selectedUser = collectorUsers.find(
+      (user) => String(user.id) === String(userId),
+    );
+
+    setSaleForm((current) => ({
+      ...current,
+      collectorUserId: userId,
+      collectorName: selectedUser?.name || "",
+      collectorEmail: selectedUser?.email || "",
     }));
   };
 
@@ -777,6 +861,7 @@ export default function SalesPage() {
 
   const createSale = async () => {
     try {
+      const savedShopId = saleForm.customerId;
       const validationErrors = validateSaleForm(
         saleForm,
         deliveryProductOptions,
@@ -803,6 +888,13 @@ export default function SalesPage() {
         quantity: Number(saleForm.quantity),
         unitPrice: Number(saleForm.unitPrice),
         amountCollected: Number(saleForm.amountCollected) || 0,
+        ...(isSuperAdmin && saleForm.collectorUserId
+          ? {
+              collectorUserId: Number(saleForm.collectorUserId),
+              collectorName: saleForm.collectorName,
+              collectorEmail: saleForm.collectorEmail,
+            }
+          : {}),
         shopkeeperSellingPrice:
           Number(saleForm.shopkeeperSellingPrice) || undefined,
         exchangeType: saleForm.exchangeType,
@@ -815,8 +907,15 @@ export default function SalesPage() {
         tone: "success",
         message: deliverySuccessMessage(),
       });
+      setDeliverySalesShopId(savedShopId);
       setSaleForm(emptySaleForm);
       await loadData();
+      window.setTimeout(() => {
+        deliveryShopSalesRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 120);
     } catch (error: any) {
       console.error(error);
       showBanner({
@@ -839,6 +938,77 @@ export default function SalesPage() {
     }
 
     downloadBoxAllocationWorkbook(boxAllocation, allocationTotalBoxes);
+  };
+
+  const copyRoutePlan = async (routePlan: RoutePlan) => {
+    const text = routeShareText(routePlan);
+
+    try {
+      await navigator.clipboard.writeText(text);
+      showBanner({
+        tone: "success",
+        message: `${routePlan.label} copied. Share it with the delivery employee.`,
+      });
+    } catch {
+      showBanner({
+        tone: "error",
+        message: "Could not copy route. Open Google Maps and share from there.",
+      });
+    }
+  };
+
+  const useCurrentRouteLocation = () => {
+    if (!navigator.geolocation) {
+      showBanner({
+        tone: "error",
+        message: "Current location is not supported on this device.",
+      });
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setRouteOrigin(
+          `${position.coords.latitude.toFixed(6)},${position.coords.longitude.toFixed(6)}`,
+        );
+        showBanner({
+          tone: "success",
+          message: "Starting point set to current location.",
+        });
+      },
+      () => {
+        showBanner({
+          tone: "error",
+          message: "Could not read current location. Please allow location access or type the start point.",
+        });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+      },
+    );
+  };
+
+  const openRouteOriginMapSearch = () => {
+    const query = mapsLocationValue(routeOrigin) || "Bengaluru";
+    const params = new URLSearchParams({
+      api: "1",
+      query,
+    });
+
+    window.open(
+      `https://www.google.com/maps/search/?${params.toString()}`,
+      "_blank",
+      "noreferrer",
+    );
+  };
+
+  const useFarmRouteOrigin = () => {
+    setRouteOrigin("Samaksh Farms, Bengaluru");
+    showBanner({
+      tone: "success",
+      message: "Starting point set to Samaksh Farms.",
+    });
   };
 
   const openPaymentEditor = (sale: any) => {
@@ -927,6 +1097,19 @@ export default function SalesPage() {
       amount: String(handover.amount ?? ""),
       remarks: handover.remarks || "",
     });
+  };
+
+  const updateHandoverCollector = (userId: string) => {
+    const selectedUser = collectorUsers.find(
+      (user) => String(user.id) === String(userId),
+    );
+
+    setHandoverForm((current) => ({
+      ...current,
+      collectorUserId: userId,
+      collectorName: selectedUser?.name || "",
+      collectorEmail: selectedUser?.email || "",
+    }));
   };
 
   const saveCashHandover = async () => {
@@ -1338,21 +1521,43 @@ export default function SalesPage() {
         </div>
 
         {selectedShop && (
-          <div className="sales-context-strip">
-            <span>
-              <Store size={16} />
-              {selectedShop.shopCategory || "Shop"}
-            </span>
-            <span>{selectedShop.location || "R.T. Nagar"}</span>
-            <span>Daily ref: {selectedShop.minimumBoxesPerDay ?? 0} boxes</span>
-            <span>Current balance: Rs. {selectedShopBalance}</span>
-            <span>Old balance paid: Rs. {amountAppliedToOldBalance}</span>
-            <span>Today's bill paid: Rs. {amountAppliedToThisSale}</span>
-            <span>After entry: Rs. {balanceAfterCollection}</span>
+          <div className="sales-delivery-focus" ref={deliveryFocusRef}>
+            <div className="sales-shop-identity">
+              <span className="sales-shop-chip sales-shop-chip-name">
+                <Store size={16} />
+                {selectedShop.customerName || "Selected shop"}
+              </span>
+              <span className="sales-shop-chip">
+                <Store size={16} />
+                {selectedShop.shopCategory || "Shop"}
+              </span>
+              <span className="sales-shop-chip">
+                {selectedShop.location || "R.T. Nagar"}
+              </span>
+              <span className="sales-shop-chip">
+                Daily reference: {selectedShop.minimumBoxesPerDay ?? 0} boxes
+              </span>
+            </div>
+
+            <div className="sales-collection-grid">
+              <div className="sales-collection-card is-pending">
+                <small>Amount to be paid</small>
+                <strong>Rs. {selectedShopBalance}</strong>
+                <span>Old pending amount before today&apos;s boxes.</span>
+              </div>
+              <div className="sales-collection-card is-collect">
+                <small>Amount to be paid after today&apos;s boxes</small>
+                <strong>Rs. {moneyToCollectToday}</strong>
+                <span>Old pending + today&apos;s bill after exchange deduction.</span>
+              </div>
+            </div>
           </div>
         )}
 
-        <div className="admin-form-grid">
+        <div
+          className="admin-form-grid delivery-entry-form"
+          ref={deliveryEntryFormRef}
+        >
           <Field label="Product" required error={saleFieldErrors.productId}>
             <input
               list="delivery-products"
@@ -1394,7 +1599,7 @@ export default function SalesPage() {
             <input value={grossAmount} readOnly />
           </Field>
 
-          <Field label="Exchange Credit">
+          <Field label="Exchange Deduction">
             <input value={exchangeCredit} readOnly />
           </Field>
 
@@ -1411,6 +1616,22 @@ export default function SalesPage() {
               }
             />
           </Field>
+
+          {isSuperAdmin && (
+            <Field label="Amount Received By Employee" optional>
+              <select
+                value={saleForm.collectorUserId}
+                onChange={(event) => updateSaleCollector(event.target.value)}
+              >
+                <option value="">Logged-in user</option>
+                {collectorUsers.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name} - {user.email}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
 
           <Field label="Pending This Sale">
             <input value={pendingForThisSale} readOnly />
@@ -1455,8 +1676,8 @@ export default function SalesPage() {
           </Field>
 
           <div className="sales-exchange-note">
-            1 on 1 deducts full unit price per exchange box. 2 on 1 deducts
-            half unit price per exchange box.
+            Exchange deduction is the credit reduced from today's bill for returned boxes.
+            1 on 1 deducts full unit price per exchange box. 2 on 1 deducts half unit price.
           </div>
 
           <Field label="Remarks">
@@ -1471,6 +1692,53 @@ export default function SalesPage() {
             Save Delivery Sale
           </button>
         </div>
+
+        {deliverySalesShopId && (
+          <div className="delivery-shop-sales" ref={deliveryShopSalesRef}>
+            <div className="delivery-shop-sales-header">
+              <div>
+                <small>Shop sales</small>
+                <strong>
+                  {deliverySalesShop?.customerName || "Selected shop"}
+                </strong>
+              </div>
+              <span>{deliveryShopSales.length} recent entries</span>
+            </div>
+
+            {deliveryShopSales.length === 0 ? (
+              <div className="delivery-shop-sales-empty">
+                Save this delivery to see the shop&apos;s latest sales here.
+              </div>
+            ) : (
+              <div className="admin-table-wrapper delivery-shop-sales-table">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Product</th>
+                      <th>Boxes</th>
+                      <th>Bill</th>
+                      <th>Collected</th>
+                      <th>Pending</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deliveryShopSales.map((sale) => (
+                      <tr key={sale.id}>
+                        <td>{formatDate(sale.saleDate)}</td>
+                        <td>{sale.productName}</td>
+                        <td>{sale.quantity}</td>
+                        <td>Rs. {sale.totalAmount}</td>
+                        <td>Rs. {sale.amountCollected || 0}</td>
+                        <td>Rs. {salePending(sale)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </Panel>
       )}
 
@@ -1534,6 +1802,196 @@ export default function SalesPage() {
                 tone="slate"
               />
             </div>
+          </Panel>
+
+          <Panel
+            title="Route Planner"
+            subtitle="Free route split using shop locations and box load. Opens final routes in Google Maps without any paid API."
+          >
+            <div className="route-planner-control">
+              <div className="route-planner-topline">
+                <Field label="Delivery Employees">
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={routeEmployeeCount}
+                    onChange={(event) =>
+                      setRouteEmployeeCount(
+                        event.target.value.replace(/[^\d]/g, ""),
+                      )
+                    }
+                  />
+                </Field>
+
+                <div className="route-origin-control">
+                  <Field label="Start From" required>
+                    <div className="route-origin-input">
+                      <Search size={17} />
+                      <input
+                        value={routeOrigin}
+                        onChange={(event) => setRouteOrigin(event.target.value)}
+                        placeholder="Search place, paste Google Maps link, or enter coordinates"
+                      />
+                    </div>
+                  </Field>
+
+                  <div className="route-origin-actions">
+                    <button
+                      className="admin-button admin-button-secondary"
+                      type="button"
+                      onClick={openRouteOriginMapSearch}
+                    >
+                      <MapPinned size={16} />
+                      Search Map
+                    </button>
+                    <button
+                      className="admin-button admin-button-secondary"
+                      type="button"
+                      onClick={useCurrentRouteLocation}
+                    >
+                      <MapPinned size={16} />
+                      Use GPS
+                    </button>
+                    <button
+                      className="admin-button admin-button-secondary"
+                      type="button"
+                      onClick={useFarmRouteOrigin}
+                    >
+                      <Store size={16} />
+                      Farm
+                    </button>
+                  </div>
+
+                  <p className="route-origin-hint">
+                    Pick a pin in Google Maps, copy the share link, and paste it here. Coordinates are read automatically.
+                  </p>
+                </div>
+              </div>
+
+              <div className="route-option-grid" aria-label="Route split options">
+                <label className="route-option-card">
+                  <input
+                    type="checkbox"
+                    checked={routeBalanceBoxes}
+                    onChange={(event) =>
+                      setRouteBalanceBoxes(event.target.checked)
+                    }
+                  />
+                  <span>
+                    <strong>Balance boxes</strong>
+                    <small>Keep the load fair across employees.</small>
+                  </span>
+                </label>
+                <label className="route-option-card">
+                  <input
+                    type="checkbox"
+                    checked={routeGroupLocation}
+                    onChange={(event) =>
+                      setRouteGroupLocation(event.target.checked)
+                    }
+                  />
+                  <span>
+                    <strong>Group locations</strong>
+                    <small>Keep nearby shops together.</small>
+                  </span>
+                </label>
+                <label className="route-option-card">
+                  <input
+                    type="checkbox"
+                    checked={routeReduceBacktracking}
+                    onChange={(event) =>
+                      setRouteReduceBacktracking(event.target.checked)
+                    }
+                  />
+                  <span>
+                    <strong>Reduce backtracking</strong>
+                    <small>Prefer stops closer to the start point.</small>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div className="admin-stat-grid">
+              <StatCard
+                label="Routes"
+                value={routePlans.length}
+                icon={<Route size={20} />}
+                tone="blue"
+              />
+              <StatCard
+                label="Stops"
+                value={boxAllocation.filter((shop) => shop.allocatedBoxes > 0).length}
+                icon={<MapPinned size={20} />}
+                tone="green"
+              />
+              <StatCard
+                label="Boxes Routed"
+                value={routePlans.reduce((total, routePlan) => total + routePlan.totalBoxes, 0)}
+                icon={<Boxes size={20} />}
+                tone="amber"
+              />
+            </div>
+
+            {routePlans.length === 0 && (
+              <EmptyState
+                title="No route ready"
+                message="Add available boxes and active shop requirements to generate routes."
+              />
+            )}
+
+            {routePlans.length > 0 && (
+              <div className="sales-route-grid">
+                {routePlans.map((routePlan) => (
+                  <div className="sales-route-card" key={routePlan.id}>
+                    <div className="sales-route-card-header">
+                      <div>
+                        <strong>{routePlan.label}</strong>
+                        <span>
+                          {routePlan.totalStops} stops - {routePlan.totalBoxes} boxes
+                        </span>
+                      </div>
+                      <div className="sales-route-actions">
+                        <button
+                          className="admin-icon-button"
+                          type="button"
+                          title="Copy route"
+                          onClick={() => copyRoutePlan(routePlan)}
+                        >
+                          <Copy size={15} />
+                        </button>
+                        <a
+                          className="admin-action-button"
+                          href={routePlan.mapsUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <MapPinned size={15} />
+                          Directions
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="sales-route-meta">
+                      {routePlan.locations.map((location) => (
+                        <span key={location}>{location}</span>
+                      ))}
+                    </div>
+
+                    <ol className="sales-route-stops">
+                      {routePlan.shops.map((shop) => (
+                        <li key={shop.shopId}>
+                          <strong>{shop.shopName}</strong>
+                          <span>
+                            {shop.location} - {shop.allocatedBoxes} boxes
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </div>
+            )}
           </Panel>
 
           <Panel
@@ -1741,15 +2199,29 @@ export default function SalesPage() {
 
           <div className="admin-form-grid">
             <Field label="Collector" required>
-              <input
-                value={handoverForm.collectorName}
-                onChange={(event) =>
-                  setHandoverForm((current) => ({
-                    ...current,
-                    collectorName: event.target.value,
-                  }))
-                }
-              />
+              {isSuperAdmin ? (
+                <select
+                  value={handoverForm.collectorUserId}
+                  onChange={(event) => updateHandoverCollector(event.target.value)}
+                >
+                  <option value="">Select collector</option>
+                  {collectorUsers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name} - {user.email}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={handoverForm.collectorName}
+                  onChange={(event) =>
+                    setHandoverForm((current) => ({
+                      ...current,
+                      collectorName: event.target.value,
+                    }))
+                  }
+                />
+              )}
             </Field>
             <Field label="Collector Email" optional>
               <input
@@ -1760,6 +2232,7 @@ export default function SalesPage() {
                     collectorEmail: event.target.value,
                   }))
                 }
+                readOnly={isSuperAdmin && Boolean(handoverForm.collectorUserId)}
               />
             </Field>
             <Field label="Given To Owner" required>
@@ -2437,6 +2910,241 @@ function buildBoxAllocation(shops: any[], totalBoxes: number): BoxAllocation[] {
   }));
 }
 
+function buildRoutePlans({
+  allocations,
+  employeeCount,
+  origin,
+  balanceBoxes,
+  groupLocation,
+  reduceBacktracking,
+}: {
+  allocations: BoxAllocation[];
+  employeeCount: number;
+  origin: string;
+  balanceBoxes: boolean;
+  groupLocation: boolean;
+  reduceBacktracking: boolean;
+}): RoutePlan[] {
+  const routeCount = Math.max(1, employeeCount || 1);
+  const normalizedOrigin = normalizedRouteLocation(origin);
+  const routePlans: RoutePlan[] = Array.from({ length: routeCount }, (_, index) => ({
+    id: index + 1,
+    label: `Route ${index + 1}`,
+    shops: [],
+    totalBoxes: 0,
+    totalStops: 0,
+    locations: [],
+    mapsUrl: "",
+  }));
+  const routableShops = allocations
+    .filter((shop) => shop.allocatedBoxes > 0)
+    .sort((first, second) => {
+      const originCompare =
+        originLocationScore(second, normalizedOrigin) -
+        originLocationScore(first, normalizedOrigin);
+
+      if (originCompare !== 0) {
+        return originCompare;
+      }
+
+      if (groupLocation || reduceBacktracking) {
+        const locationCompare = first.location.localeCompare(second.location);
+
+        if (locationCompare !== 0) {
+          return locationCompare;
+        }
+      }
+
+      if (balanceBoxes && second.allocatedBoxes !== first.allocatedBoxes) {
+        return second.allocatedBoxes - first.allocatedBoxes;
+      }
+
+      return first.shopName.localeCompare(second.shopName);
+    });
+
+  if (groupLocation) {
+    const groups = groupByLocation(routableShops, normalizedOrigin);
+
+    groups.forEach((group) => {
+      const targetRoute = routePlans
+        .slice()
+        .sort((first, second) => routeWeight(first, balanceBoxes) - routeWeight(second, balanceBoxes))[0];
+
+      group.forEach((shop) => addShopToRoute(targetRoute, shop));
+    });
+  } else {
+    routableShops.forEach((shop) => {
+      const targetRoute = routePlans
+        .slice()
+        .sort((first, second) => routeWeight(first, balanceBoxes) - routeWeight(second, balanceBoxes))[0];
+
+      addShopToRoute(targetRoute, shop);
+    });
+  }
+
+  return routePlans
+    .map((routePlan) => ({
+      ...routePlan,
+      shops: reduceBacktracking
+        ? routePlan.shops.sort((first, second) => {
+            const originCompare =
+              originLocationScore(second, normalizedOrigin) -
+              originLocationScore(first, normalizedOrigin);
+
+            if (originCompare !== 0) {
+              return originCompare;
+            }
+
+            const locationCompare = first.location.localeCompare(second.location);
+
+            return locationCompare || first.shopName.localeCompare(second.shopName);
+          })
+        : routePlan.shops,
+    }))
+    .filter((routePlan) => routePlan.shops.length > 0)
+    .map((routePlan) => ({
+      ...routePlan,
+      mapsUrl: googleMapsRouteUrl(origin, routePlan.shops),
+    }));
+}
+
+function groupByLocation(shops: BoxAllocation[], normalizedOrigin: string) {
+  const groups = new Map<string, BoxAllocation[]>();
+
+  shops.forEach((shop) => {
+    const key = normalizedRouteLocation(shop.location);
+    const group = groups.get(key) || [];
+    group.push(shop);
+    groups.set(key, group);
+  });
+
+  return Array.from(groups.values()).sort((first, second) => {
+    const firstOriginScore = Math.max(
+      ...first.map((shop) => originLocationScore(shop, normalizedOrigin)),
+    );
+    const secondOriginScore = Math.max(
+      ...second.map((shop) => originLocationScore(shop, normalizedOrigin)),
+    );
+
+    if (secondOriginScore !== firstOriginScore) {
+      return secondOriginScore - firstOriginScore;
+    }
+
+    const firstBoxes = first.reduce((total, shop) => total + shop.allocatedBoxes, 0);
+    const secondBoxes = second.reduce((total, shop) => total + shop.allocatedBoxes, 0);
+
+    return secondBoxes - firstBoxes;
+  });
+}
+
+function addShopToRoute(routePlan: RoutePlan, shop: BoxAllocation) {
+  routePlan.shops.push(shop);
+  routePlan.totalBoxes += shop.allocatedBoxes;
+  routePlan.totalStops += 1;
+  routePlan.locations = Array.from(
+    new Set([...routePlan.locations, shop.location || "R.T. Nagar"]),
+  );
+}
+
+function routeWeight(routePlan: RoutePlan, balanceBoxes: boolean) {
+  return balanceBoxes ? routePlan.totalBoxes : routePlan.totalStops;
+}
+
+function googleMapsRouteUrl(origin: string, shops: BoxAllocation[]) {
+  const stops = shops.map(routeStopLabel);
+  const routeOrigin = mapsLocationValue(origin) || "Samaksh Farms, Bengaluru";
+  const destination = stops[stops.length - 1] || routeOrigin;
+  const waypoints = stops.slice(0, -1).join("|");
+  const params = new URLSearchParams({
+    api: "1",
+    origin: routeOrigin,
+    destination,
+    travelmode: "driving",
+    dir_action: "navigate",
+  });
+
+  if (waypoints) {
+    params.set("waypoints", waypoints);
+  }
+
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+function routeStopLabel(shop: BoxAllocation) {
+  return `${shop.shopName}, ${shop.location || "Bengaluru"}, Bengaluru`;
+}
+
+function routeShareText(routePlan: RoutePlan) {
+  const stops = routePlan.shops
+    .map(
+      (shop, index) =>
+        `${index + 1}. ${shop.shopName} - ${shop.location} - ${shop.allocatedBoxes} boxes`,
+    )
+    .join("\n");
+
+  return `${routePlan.label}\n${routePlan.totalStops} stops | ${routePlan.totalBoxes} boxes\n\n${stops}\n\nMap: ${routePlan.mapsUrl}`;
+}
+
+function normalizedRouteLocation(value?: string) {
+  return String(value || "R.T. Nagar")
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function originLocationScore(shop: BoxAllocation, normalizedOrigin: string) {
+  if (!normalizedOrigin) {
+    return 0;
+  }
+
+  const location = normalizedRouteLocation(shop.location);
+  const shopName = normalizedRouteLocation(shop.shopName);
+
+  if (normalizedOrigin.includes(location) || location.includes(normalizedOrigin)) {
+    return 3;
+  }
+
+  if (normalizedOrigin.includes(shopName) || shopName.includes(normalizedOrigin)) {
+    return 2;
+  }
+
+  return normalizedOrigin
+    .split(" ")
+    .filter((part) => part.length > 2)
+    .some((part) => location.includes(part) || shopName.includes(part))
+    ? 1
+    : 0;
+}
+
+function mapsLocationValue(value?: string) {
+  const trimmed = String(value || "").trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const atCoordinates = trimmed.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+
+  if (atCoordinates) {
+    return `${atCoordinates[1]},${atCoordinates[2]}`;
+  }
+
+  const bangCoordinates = trimmed.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+
+  if (bangCoordinates) {
+    return `${bangCoordinates[1]},${bangCoordinates[2]}`;
+  }
+
+  const plainCoordinates = trimmed.match(/^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/);
+
+  if (plainCoordinates) {
+    return `${plainCoordinates[1]},${plainCoordinates[2]}`;
+  }
+
+  return trimmed;
+}
+
 function formatExchange(value?: string) {
   return exchangeTypes.find((type) => type.value === value)?.label || "None";
 }
@@ -2504,4 +3212,28 @@ function parseBusinessDate(value?: string) {
 
 function auditName(value?: string) {
   return value && value !== "SYSTEM" ? value : "System";
+}
+
+function isBootstrapAdminUser(user: any) {
+  const name = normalizedUserIdentity(user?.name);
+  const email = normalizedUserIdentity(user?.email);
+  const primaryRole = String(user?.role || "").toUpperCase();
+  const roles = Array.isArray(user?.roles)
+    ? user.roles.map((role: unknown) => String(role).toUpperCase())
+    : [];
+
+  return (
+    name === "samaksh farms admin" ||
+    email.includes("bootstrap") ||
+    email === "admin@samakshfarms.in" ||
+    email === "admin@samakshfarms.com" ||
+    (primaryRole === "SUPER_ADMIN" && name.includes("bootstrap")) ||
+    (roles.includes("SUPER_ADMIN") && name.includes("bootstrap"))
+  );
+}
+
+function normalizedUserIdentity(value?: string) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
 }
