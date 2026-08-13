@@ -24,6 +24,7 @@ import {
   StatusPill,
 } from "../components/AdminUI";
 import api from "../services/api";
+import { getStoredRoles } from "../../routes/authSession";
 import {
   downloadBoxAllocationWorkbook,
   downloadSalesWorkbook,
@@ -64,6 +65,7 @@ const emptyShopForm = {
 const emptySaleForm = {
   customerId: "",
   productId: "",
+  productName: "",
   quantity: "",
   unitPrice: "",
   shopkeeperSellingPrice: "",
@@ -106,6 +108,20 @@ function optionalText(value: string) {
   return trimmed ? trimmed : null;
 }
 
+function apiValidationMessage(error: any, fallback: string) {
+  const data = error?.response?.data?.data;
+
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const firstError = Object.values(data).find(Boolean);
+
+    if (firstError) {
+      return String(firstError);
+    }
+  }
+
+  return error?.response?.data?.message || fallback;
+}
+
 export default function SalesPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [allCustomers, setAllCustomers] = useState<any[]>([]);
@@ -134,13 +150,19 @@ export default function SalesPage() {
   const shopFormRef = useRef<HTMLDivElement | null>(null);
   const shopNameInputRef = useRef<HTMLInputElement | null>(null);
 
-  const role = localStorage.getItem("role");
+  const roles = useMemo(() => getStoredRoles(), []);
+  const hasRole = (...allowedRoles: string[]) =>
+    roles.some((userRole) => allowedRoles.includes(userRole));
   const hasPermission = (permission: string) =>
-    role === "SUPER_ADMIN" || permissions.includes(permission);
-  const canManageShops = hasPermission("sales.manage_shops");
-  const canViewLedger = hasPermission("sales.view_ledger");
-  const canCreateDelivery = hasPermission("sales.create_delivery");
-  const canDeleteShops = role === "SUPER_ADMIN";
+    hasRole("SUPER_ADMIN") || permissions.includes(permission);
+  const isSalesAdmin = hasRole("SALES_ADMIN");
+  const isSalesEmployee = hasRole("SALES_EMPLOYEE", "SALES_USER");
+  const canManageShops =
+    isSalesAdmin || isSalesEmployee || hasPermission("sales.manage_shops");
+  const canViewLedger = isSalesAdmin || hasPermission("sales.view_ledger");
+  const canCreateDelivery =
+    isSalesAdmin || isSalesEmployee || hasPermission("sales.create_delivery");
+  const canDeleteShops = hasRole("SUPER_ADMIN", "SALES_ADMIN");
 
   useEffect(() => {
     loadData();
@@ -198,22 +220,30 @@ export default function SalesPage() {
     () => products.filter((product) => product.active !== false),
     [products],
   );
+  const deliveryProductOptions = useMemo(
+    () => buildDeliveryProductOptions(selectedShop, activeProducts),
+    [activeProducts, selectedShop],
+  );
 
   useEffect(() => {
-    if (saleForm.productId || activeProducts.length === 0) {
+    if (saleForm.productId || saleForm.productName || deliveryProductOptions.length === 0) {
       return;
     }
 
-    const defaultProduct =
-      productForShop(selectedShop, activeProducts) || activeProducts[0];
+    const defaultProduct = deliveryProductOptions[0];
 
     setSaleForm((current) => ({
       ...current,
-      productId: String(defaultProduct.id),
+      productId: defaultProduct.id ? String(defaultProduct.id) : "",
+      productName: defaultProduct.productName,
       unitPrice:
         current.unitPrice || String(defaultProduct.standardPrice ?? "50"),
     }));
-  }, [activeProducts, saleForm.productId, selectedShop]);
+  }, [
+    deliveryProductOptions,
+    saleForm.productId,
+    saleForm.productName,
+  ]);
 
   const selectedShopBalance = useMemo(
     () => calculateShopBalance(sales, Number(saleForm.customerId)),
@@ -306,13 +336,23 @@ export default function SalesPage() {
     [boxAllocation],
   );
 
-  const tabs = [
-    canCreateDelivery && { id: "delivery", label: "Delivery Entry" },
-    canCreateDelivery && { id: "allocation", label: "Box Allocation" },
-    canManageShops && { id: "shops", label: "Shop Setup" },
-    canViewLedger && { id: "ledger", label: "Sales Ledger" },
-    canViewLedger && { id: "history", label: "Shop History" },
-  ].filter(Boolean) as { id: string; label: string }[];
+  const tabs = useMemo(
+    () =>
+      [
+        canCreateDelivery && { id: "delivery", label: "Delivery Entry" },
+        canCreateDelivery && { id: "allocation", label: "Box Allocation" },
+        canManageShops && { id: "shops", label: "Shop Setup" },
+        canViewLedger && { id: "ledger", label: "Sales Ledger" },
+        canViewLedger && { id: "history", label: "Shop History" },
+      ].filter(Boolean) as { id: string; label: string }[],
+    [canCreateDelivery, canManageShops, canViewLedger],
+  );
+
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab(tabs[0].id);
+    }
+  }, [activeTab, tabs]);
 
   const updateShopField = (
     field: keyof ShopForm,
@@ -380,14 +420,15 @@ export default function SalesPage() {
     });
   };
 
-  const updateSaleProduct = (productId: string) => {
-    const product = activeProducts.find(
-      (item) => String(item.id) === String(productId),
+  const updateSaleProduct = (productValue: string) => {
+    const product = deliveryProductOptions.find(
+      (item) => optionValueForProduct(item) === productValue,
     );
 
     setSaleForm((current) => ({
       ...current,
-      productId,
+      productId: product?.id ? String(product.id) : "",
+      productName: product?.productName || "",
       unitPrice:
         product?.standardPrice !== null &&
         product?.standardPrice !== undefined
@@ -395,12 +436,31 @@ export default function SalesPage() {
           : current.unitPrice,
     }));
     setSaleFieldErrors((current) => {
-      if (!current.productId) {
+      if (!current.productId && !current.productName) {
         return current;
       }
 
       const next = { ...current };
       delete next.productId;
+      delete next.productName;
+      return next;
+    });
+  };
+
+  const updateManualSaleProduct = (productName: string) => {
+    setSaleForm((current) => ({
+      ...current,
+      productId: "",
+      productName,
+    }));
+    setSaleFieldErrors((current) => {
+      if (!current.productId && !current.productName) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next.productId;
+      delete next.productName;
       return next;
     });
   };
@@ -468,10 +528,10 @@ export default function SalesPage() {
       errors.customerId = "Shop is required";
     }
 
-    if (!form.productId) {
+    if (!form.productId && !form.productName.trim()) {
       errors.productId =
         productOptions.length === 0
-          ? "Create at least one active product before delivery entry"
+          ? "Choose a shop product or enter the product manually"
           : "Product is required";
     }
 
@@ -572,9 +632,22 @@ export default function SalesPage() {
       await loadData();
     } catch (error: any) {
       console.error(error);
+      const backendErrors = error?.response?.data?.data;
+
+      if (
+        backendErrors &&
+        typeof backendErrors === "object" &&
+        !Array.isArray(backendErrors)
+      ) {
+        setShopFieldErrors((current) => ({
+          ...current,
+          ...(backendErrors as ShopFieldErrors),
+        }));
+      }
+
       showBanner({
         tone: "error",
-        message: error?.response?.data?.message || "Failed to save shop.",
+        message: apiValidationMessage(error, "Failed to save shop."),
       });
     }
   };
@@ -615,6 +688,9 @@ export default function SalesPage() {
     );
     const latestSale = latestSaleForShop(sales, Number(customerId));
     const shopDefaultProduct = productForShop(shop, activeProducts);
+    const shopProductName = shopDefaultProduct
+      ? shopDefaultProduct.productName
+      : normalizeShopProducts(shop?.products)[0] || "";
     const selectedProduct = latestSale?.productId
       ? activeProducts.find(
           (product) => String(product.id) === String(latestSale.productId),
@@ -631,6 +707,11 @@ export default function SalesPage() {
             activeProducts[0]?.id ||
             "",
         ),
+      productName:
+        latestSale?.productName ||
+        shopProductName ||
+        activeProducts[0]?.productName ||
+        "",
       quantity: String(
         latestSale?.quantity ?? shop?.minimumBoxesPerDay ?? current.quantity,
       ),
@@ -663,7 +744,7 @@ export default function SalesPage() {
     try {
       const validationErrors = validateSaleForm(
         saleForm,
-        activeProducts,
+        deliveryProductOptions,
       );
 
       if (Object.keys(validationErrors).length > 0) {
@@ -682,7 +763,8 @@ export default function SalesPage() {
 
       await api.post("/api/sales", {
         customerId: Number(saleForm.customerId),
-        productId: Number(saleForm.productId),
+        productId: saleForm.productId ? Number(saleForm.productId) : null,
+        productName: optionalText(saleForm.productName),
         quantity: Number(saleForm.quantity),
         unitPrice: Number(saleForm.unitPrice),
         amountCollected: Number(saleForm.amountCollected) || 0,
@@ -1141,20 +1223,34 @@ export default function SalesPage() {
         <div className="admin-form-grid">
           <Field label="Product" required error={saleFieldErrors.productId}>
             <select
-              value={saleForm.productId}
+              value={
+                saleForm.productId
+                  ? `id:${saleForm.productId}`
+                  : saleForm.productName
+                    ? `name:${saleForm.productName}`
+                    : ""
+              }
               onChange={(event) => updateSaleProduct(event.target.value)}
             >
               <option value="">
-                {activeProducts.length === 0
-                  ? "No products available"
+                {deliveryProductOptions.length === 0
+                  ? "Enter product manually"
                   : "Select product"}
               </option>
-              {activeProducts.map((product) => (
-                <option key={product.id} value={product.id}>
+              {deliveryProductOptions.map((product) => (
+                <option key={optionValueForProduct(product)} value={optionValueForProduct(product)}>
                   {product.productName}
                 </option>
               ))}
             </select>
+          </Field>
+
+          <Field label="Manual Product" optional error={saleFieldErrors.productName}>
+            <input
+              value={saleForm.productName}
+              onChange={(event) => updateManualSaleProduct(event.target.value)}
+              placeholder="Example: Oyster Mushroom"
+            />
           </Field>
 
           <Field label="Boxes" required error={saleFieldErrors.quantity}>
@@ -1789,6 +1885,47 @@ export default function SalesPage() {
 
 function latestSaleForShop(sales: any[], customerId: number) {
   return sales.find((sale) => Number(sale.customerId) === customerId);
+}
+
+function buildDeliveryProductOptions(shop: any, products: any[]) {
+  const productOptions = [...products];
+  const existingNames = new Set(
+    products.map((product) => normalizedProductName(product.productName)),
+  );
+
+  normalizeShopProducts(shop?.products).forEach((productName) => {
+    const normalizedName = normalizedProductName(productName);
+
+    if (!normalizedName || existingNames.has(normalizedName)) {
+      return;
+    }
+
+    productOptions.push({
+      id: null,
+      productName,
+      standardPrice: shop?.defaultBoxPrice ?? 50,
+      active: true,
+    });
+    existingNames.add(normalizedName);
+  });
+
+  if (
+    productOptions.length === 0 &&
+    (!shop || normalizeShopProducts(shop.products).length === 0)
+  ) {
+    productOptions.push({
+      id: null,
+      productName: "Oyster Mushroom",
+      standardPrice: shop?.defaultBoxPrice ?? 50,
+      active: true,
+    });
+  }
+
+  return productOptions;
+}
+
+function optionValueForProduct(product: any) {
+  return product?.id ? `id:${product.id}` : `name:${product?.productName || ""}`;
 }
 
 function productForShop(shop: any, products: any[]) {
