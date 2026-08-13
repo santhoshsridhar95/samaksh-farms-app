@@ -1,43 +1,35 @@
-import { useState, type ReactElement, type SyntheticEvent } from "react";
+import { useEffect, useState, type ReactElement, type SyntheticEvent } from "react";
 
-interface Product {
-  id: number;
-  name: string;
-  desc: string;
-  price: number;
-  unit: string;
-  img: string;
-}
-
-const products: Product[] = [
-  {
-    id: 1,
-    name: "Button Mushrooms ",
-    desc: "Fresh, firm, ideal for everyday cooking.  (Subject to availability)",
-    price: 199,
-    unit: "kg",
-    img: "/button-mushroom.jpg",
-  },
-  {
-    id: 2,
-    name: "Oyster Mushrooms",
-    desc: "Soft texture, rich flavor, highly nutritious",
-    price: 199,
-    unit: "kg",
-    img: "/oyster-mushroom.jpg",
-  },
-  {
-    id: 3,
-    name: "Oyster Mushroom Box (200gm)",
-    desc: "Fresh packed mushrooms ready for daily use",
-    price: 59,
-    unit: "box",
-    img: "/oyster-mushroom-box.jpg",
-  },
-];
+import {
+  fallbackProducts,
+  fetchPublicProducts,
+  mergeCatalogPrices,
+  type PublicProduct,
+} from "../services/publicProducts";
 
 export default function Products(): ReactElement {
+  const [products, setProducts] = useState<PublicProduct[]>(fallbackProducts);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
+
+  useEffect(() => {
+    let mounted = true;
+
+    fetchPublicProducts()
+      .then((catalogProducts) => {
+        if (mounted) {
+          setProducts(mergeCatalogPrices(catalogProducts));
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setProducts(fallbackProducts);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const increaseQty = (id: number): void => {
     setQuantities((prev) => ({
@@ -53,7 +45,7 @@ export default function Products(): ReactElement {
     }));
   };
 
-  const orderOnWhatsApp = (product: Product): void => {
+  const orderOnWhatsApp = (product: PublicProduct): void => {
     const qty = quantities[product.id] || 1;
     const total = qty * product.price;
 

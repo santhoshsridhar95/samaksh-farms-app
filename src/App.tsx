@@ -18,6 +18,7 @@ import AuditTrailPage from "./admin/pages/AuditTrailPage";
 import VerifyEmailPage from "./admin/pages/VerifyEmailPage";
 import ServerKeepAlivePage from "./admin/pages/ServerKeepAlivePage";
 import ReviewManagementPage from "./admin/pages/ReviewManagementPage";
+import ProductPricingPage from "./admin/pages/ProductPricingPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import RoleBasedRoute from "./routes/RoleProtectedRoute";
 import { useEffect } from "react";
@@ -52,8 +53,6 @@ export default function App() {
                 "SUPER_ADMIN",
                 "FARM_MANAGER",
                 "SALES_ADMIN",
-                "SALES_EMPLOYEE",
-                "SALES_USER",
               ]}
             >
               <DashboardPage />
@@ -167,6 +166,15 @@ export default function App() {
         />
 
         <Route
+          path="/admin/product-prices"
+          element={
+            <RoleBasedRoute allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN"]}>
+              <ProductPricingPage />
+            </RoleBasedRoute>
+          }
+        />
+
+        <Route
           path="/admin/server"
           element={
             <RoleBasedRoute
@@ -174,8 +182,6 @@ export default function App() {
                 "SUPER_ADMIN",
                 "FARM_MANAGER",
                 "SALES_ADMIN",
-                "SALES_EMPLOYEE",
-                "SALES_USER",
               ]}
             >
               <ServerKeepAlivePage />

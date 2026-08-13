@@ -1,4 +1,39 @@
+import { useEffect, useState } from "react";
+
+import {
+  fallbackProducts,
+  fetchPublicProducts,
+  mergeCatalogPrices,
+  type PublicProduct,
+} from "../services/publicProducts";
+
 export default function Hero() {
+  const [products, setProducts] = useState<PublicProduct[]>(fallbackProducts);
+
+  useEffect(() => {
+    let mounted = true;
+
+    fetchPublicProducts()
+      .then((catalogProducts) => {
+        if (mounted) {
+          setProducts(mergeCatalogPrices(catalogProducts));
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setProducts(fallbackProducts);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const buttonMushroom = products[0] || fallbackProducts[0];
+  const oysterMushroom = products[1] || fallbackProducts[1];
+  const oysterBox = products[2] || fallbackProducts[2];
+
   return (
     <section className="hero-section container">
       <span className="hero-ambient hero-ambient-one" />
@@ -73,19 +108,23 @@ export default function Hero() {
           <span className="hero-peek-line" />
           <span className="hero-peek-card">
             <strong>Button</strong>
-            <small>Rs. 199/kg</small>
+            <small>{priceText(buttonMushroom)}</small>
           </span>
           <span className="hero-peek-card hero-peek-card-featured">
             <strong>Oyster Box</strong>
-            <small>Rs. 59/box</small>
+            <small>{priceText(oysterBox)}</small>
           </span>
           <span className="hero-peek-card">
             <strong>Oyster</strong>
-            <small>Rs. 199/kg</small>
+            <small>{priceText(oysterMushroom)}</small>
           </span>
           <span className="hero-peek-hint">Fresh picks below</span>
         </a>
       </div>
     </section>
   );
+}
+
+function priceText(product: PublicProduct) {
+  return `Rs. ${product.price}/${product.unit}`;
 }
