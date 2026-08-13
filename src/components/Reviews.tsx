@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactElement } from "react";
 import api from "../api/api";
 
 interface Review {
+  id?: number;
   name: string;
   location: string;
   review: string;
@@ -51,19 +52,18 @@ export default function Reviews(): ReactElement {
   const [visibleCards, setVisibleCards] = useState<number>(getVisibleCards());
   const [startIndex, setStartIndex] = useState<number>(0);
   const [paused, setPaused] = useState<boolean>(false);
-  const [customerReviews, setCustomerReviews] =
-    useState<Review[]>(fallbackReviews);
+  const [customerReviews, setCustomerReviews] = useState<Review[]>([]);
 
   const loadReviews = async () => {
     try {
       const response = await api.get("/api/reviews");
       const apiReviews = response?.data?.data;
 
-      if (Array.isArray(apiReviews) && apiReviews.length > 0) {
+      if (Array.isArray(apiReviews)) {
         setCustomerReviews(apiReviews);
       }
     } catch {
-      setCustomerReviews(fallbackReviews);
+      setCustomerReviews([]);
     }
   };
 
@@ -87,7 +87,7 @@ export default function Reviews(): ReactElement {
   }, []);
 
   const allReviews = useMemo(
-    () => (customerReviews.length > 0 ? customerReviews : fallbackReviews),
+    () => mergeReviews(customerReviews, fallbackReviews),
     [customerReviews],
   );
 
@@ -112,8 +112,9 @@ export default function Reviews(): ReactElement {
   };
 
   const visibleReviews: Review[] = [];
+  const cardsToShow = Math.min(visibleCards, allReviews.length);
 
-  for (let i = 0; i < visibleCards; i++) {
+  for (let i = 0; i < cardsToShow; i++) {
     visibleReviews.push(allReviews[(startIndex + i) % allReviews.length]);
   }
 
@@ -142,7 +143,7 @@ export default function Reviews(): ReactElement {
         <div className="reviews-grid-slider">
           {visibleReviews.map((review, index) => (
             <div
-              key={`${review.name}-${review.review}-${index}`}
+              key={review.id ? `api-${review.id}` : `${review.name}-${review.review}-${index}`}
               className="review-card"
             >
               <div className="stars" aria-label={`${review.rating} star review`}>
@@ -170,4 +171,29 @@ export default function Reviews(): ReactElement {
 function starsForRating(value: number) {
   const safeRating = Math.min(5, Math.max(1, Math.round(value)));
   return "\u2605".repeat(safeRating) + "\u2606".repeat(5 - safeRating);
+}
+
+function mergeReviews(primaryReviews: Review[], fallbackReviews: Review[]) {
+  const seen = new Set<string>();
+
+  return [...primaryReviews, ...fallbackReviews].filter((review) => {
+    const key = reviewIdentity(review);
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function reviewIdentity(review: Review) {
+  return [review.name, review.location, review.review]
+    .map((value) =>
+      String(value || "")
+        .trim()
+        .toLowerCase(),
+    )
+    .join("|");
 }

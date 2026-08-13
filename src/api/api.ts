@@ -6,6 +6,11 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
+  if (isPublicEndpoint(config.url)) {
+    delete config.headers.Authorization;
+    return config;
+  }
+
   const token = localStorage.getItem("token");
 
   if (token) {
@@ -16,3 +21,11 @@ api.interceptors.request.use((config) => {
 });
 
 export default api;
+
+function isPublicEndpoint(url?: string) {
+  return Boolean(
+    url === "/api/reviews" ||
+      url?.includes("/api/auth/") ||
+      url?.includes("/api/products"),
+  );
+}
