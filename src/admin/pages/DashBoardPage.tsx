@@ -41,6 +41,9 @@ export default function DashboardPage() {
   const [rankLimit, setRankLimit] = useState("5");
   const [rankLocation, setRankLocation] = useState("ALL");
   const [rankSort, setRankSort] = useState("revenue");
+  const [selectedTrendDate, setSelectedTrendDate] = useState(() =>
+    dateKey(new Date()),
+  );
 
   useEffect(() => {
     loadDashboard();
@@ -124,6 +127,22 @@ export default function DashboardPage() {
   );
 
   const salesSimulation = useMemo(() => buildSalesSimulation(sales), [sales]);
+  const selectedTrendSales = useMemo(
+    () => buildSalesDayDetail(sales, selectedTrendDate),
+    [sales, selectedTrendDate],
+  );
+  const todayTrendSales = useMemo(
+    () => buildSalesDayDetail(sales, dateKey(new Date())),
+    [sales],
+  );
+  const selectedVsToday = useMemo(
+    () => ({
+      revenue: selectedTrendSales.revenue - todayTrendSales.revenue,
+      boxes: selectedTrendSales.boxes - todayTrendSales.boxes,
+      buyers: selectedTrendSales.buyers.length - todayTrendSales.buyers.length,
+    }),
+    [selectedTrendSales, todayTrendSales],
+  );
   const shopPieSegments = useMemo(
     () => buildShopPieSegments(rankedShops.slice(0, 6)),
     [rankedShops],
@@ -385,14 +404,96 @@ export default function DashboardPage() {
 
             <div className="dashboard-bar-chart" aria-label="Daily sales trend">
               {salesSimulation.dailyTrend.map((day) => (
-                <div className="dashboard-bar-item" key={day.label}>
+                <button
+                  className={`dashboard-bar-item ${
+                    selectedTrendDate === day.key ? "is-selected" : ""
+                  }`}
+                  key={day.key}
+                  type="button"
+                  onClick={() => setSelectedTrendDate(day.key)}
+                  title={`View buyers for ${day.fullLabel}`}
+                >
                   <div className="dashboard-bar-track">
                     <span style={{ height: `${day.percent}%` }} />
                   </div>
                   <small>{day.label}</small>
                   <strong>Rs. {day.revenue}</strong>
-                </div>
+                </button>
               ))}
+            </div>
+
+            <div className="dashboard-trend-detail">
+              <header>
+                <div>
+                  <h4>{selectedTrendSales.label}</h4>
+                  <span>
+                    Compared with today: {formatSignedCurrency(selectedVsToday.revenue)}
+                    {" | "}
+                    {formatSignedNumber(selectedVsToday.boxes)} boxes
+                    {" | "}
+                    {formatSignedNumber(selectedVsToday.buyers)} buyers
+                  </span>
+                </div>
+                <strong>Rs. {selectedTrendSales.revenue}</strong>
+              </header>
+
+              <div className="dashboard-trend-stats">
+                <span>
+                  <small>Buyers</small>
+                  <strong>{selectedTrendSales.buyers.length}</strong>
+                </span>
+                <span>
+                  <small>Boxes</small>
+                  <strong>{selectedTrendSales.boxes}</strong>
+                </span>
+                <span>
+                  <small>Collected</small>
+                  <strong>Rs. {selectedTrendSales.collected}</strong>
+                </span>
+                <span>
+                  <small>Pending</small>
+                  <strong>Rs. {selectedTrendSales.pending}</strong>
+                </span>
+              </div>
+
+              {selectedTrendSales.buyers.length === 0 && (
+                <EmptyState
+                  title="No buyers on this date"
+                  message="Click another bar to inspect that day's shop sales."
+                />
+              )}
+
+              {selectedTrendSales.buyers.length > 0 && (
+                <div className="sales-table-wrap dashboard-trend-buyers">
+                  <table className="admin-data-table">
+                    <thead>
+                      <tr>
+                        <th>Buyer</th>
+                        <th>Location</th>
+                        <th>Boxes</th>
+                        <th>Revenue</th>
+                        <th>Collected</th>
+                        <th>Pending</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedTrendSales.buyers.map((buyer) => (
+                        <tr key={buyer.key}>
+                          <td>
+                            <strong>{buyer.shopName}</strong>
+                            <span>{buyer.shopCategory}</span>
+                          </td>
+                          <td>{buyer.location}</td>
+                          <td>{buyer.boxes}</td>
+                          <td>Rs. {buyer.revenue}</td>
+                          <td>Rs. {buyer.collected}</td>
+                          <td>Rs. {buyer.pending}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </article>
 
@@ -925,13 +1026,22 @@ function buildSalesSimulation(sales: any[]) {
   );
 
   const dailyTrend = lastSevenDays.map((date) => {
+    const key = dateKey(date);
     const revenue = Math.round(revenueByDate[dateKey(date)] || 0);
 
     return {
+      key,
       label: date.toLocaleDateString("en-IN", {
         timeZone: "Asia/Kolkata",
         day: "2-digit",
         month: "short",
+      }),
+      fullLabel: date.toLocaleDateString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
       }),
       revenue,
       percent: Math.max(4, (revenue / maxRevenue) * 100),
@@ -966,6 +1076,91 @@ function buildSalesSimulation(sales: any[]) {
       .sort((first, second) => first.delta - second.delta)
       .slice(0, 5),
   };
+}
+
+function buildSalesDayDetail(sales: any[], selectedDateKey: string) {
+  const selectedDate = parseBusinessDate(`${selectedDateKey}T00:00:00`);
+  const grouped = sales.reduce<Record<string, any>>((result, sale) => {
+    const saleKey = sale.saleDate ? dateKey(parseBusinessDate(sale.saleDate)) : "";
+
+    if (saleKey !== selectedDateKey) {
+      return result;
+    }
+
+    const key = String(sale.customerId || sale.customerName || "unknown");
+    const current =
+      result[key] ||
+      {
+        key,
+        shopName: sale.customerName || "Unknown",
+        shopCategory: sale.shopCategory || "Shop",
+        location: sale.location || "R.T. Nagar",
+        boxes: 0,
+        revenue: 0,
+        collected: 0,
+        pending: 0,
+      };
+
+    current.boxes += Number(sale.quantity) || 0;
+    current.revenue += Number(sale.totalAmount) || 0;
+    current.collected += Number(sale.amountCollected) || 0;
+    current.pending += salePending(sale);
+
+    result[key] = current;
+    return result;
+  }, {});
+
+  const buyers = Object.values(grouped)
+    .map((buyer) => ({
+      ...buyer,
+      boxes: roundNumber(buyer.boxes),
+      revenue: Math.round(buyer.revenue),
+      collected: Math.round(buyer.collected),
+      pending: Math.round(buyer.pending),
+    }))
+    .sort((first, second) => second.revenue - first.revenue);
+
+  return {
+    key: selectedDateKey,
+    label: Number.isNaN(selectedDate.getTime())
+      ? selectedDateKey
+      : selectedDate.toLocaleDateString("en-IN", {
+          timeZone: "Asia/Kolkata",
+          weekday: "long",
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+    buyers,
+    boxes: roundNumber(buyers.reduce((sum, buyer) => sum + buyer.boxes, 0)),
+    revenue: Math.round(buyers.reduce((sum, buyer) => sum + buyer.revenue, 0)),
+    collected: Math.round(buyers.reduce((sum, buyer) => sum + buyer.collected, 0)),
+    pending: Math.round(buyers.reduce((sum, buyer) => sum + buyer.pending, 0)),
+  };
+}
+
+function formatSignedCurrency(value: number) {
+  const rounded = Math.round(value);
+
+  if (rounded === 0) {
+    return "Rs. 0";
+  }
+
+  return `${rounded > 0 ? "+" : "-"}Rs. ${Math.abs(rounded)}`;
+}
+
+function formatSignedNumber(value: number) {
+  const rounded = roundNumber(value);
+
+  if (rounded === 0) {
+    return "0";
+  }
+
+  return `${rounded > 0 ? "+" : ""}${rounded}`;
+}
+
+function roundNumber(value: number) {
+  return Math.round((Number(value) || 0) * 100) / 100;
 }
 
 function buildExchangeBoxAnalytics(sales: any[], handovers: any[]) {
