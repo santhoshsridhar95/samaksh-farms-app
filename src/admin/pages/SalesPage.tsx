@@ -182,6 +182,10 @@ export default function SalesPage() {
   const [paymentSale, setPaymentSale] = useState<any>(null);
   const [paymentReceived, setPaymentReceived] = useState("");
   const [paymentRemarks, setPaymentRemarks] = useState("");
+  const [pendingAmountFill, setPendingAmountFill] = useState<{
+    label: string;
+    amount: number;
+  } | null>(null);
   const [editingSale, setEditingSale] = useState<any>(null);
   const [saleEditForm, setSaleEditForm] =
     useState<SaleEditForm>(emptySaleForm);
@@ -208,6 +212,9 @@ export default function SalesPage() {
   const deliveryFocusRef = useRef<HTMLDivElement | null>(null);
   const deliveryEntryFormRef = useRef<HTMLDivElement | null>(null);
   const deliveryShopSalesRef = useRef<HTMLDivElement | null>(null);
+  const amountReceivedInputRef = useRef<HTMLInputElement | null>(null);
+  const savingSaleEditRef = useRef(false);
+  const suppressDeliveryDraftAutofillRef = useRef(false);
 
   const roles = useMemo(() => getStoredRoles(), []);
   const hasRole = (...allowedRoles: string[]) =>
@@ -250,7 +257,12 @@ export default function SalesPage() {
       ] = await Promise.all([
         api.get("/api/customers?size=1000"),
         api.get("/api/products"),
-        api.get("/api/sales?size=1000"),
+        api.get("/api/sales", {
+          params: {
+            size: 1000,
+            refresh: Date.now(),
+          },
+        }),
         api.get("/api/entitlements/me"),
       ]);
 
@@ -348,6 +360,26 @@ export default function SalesPage() {
     ]);
   };
 
+  const applySavedSale = (savedSale: any) => {
+    if (!savedSale?.id) {
+      return;
+    }
+
+    setSales((current) => {
+      const exists = current.some(
+        (sale) => String(sale.id) === String(savedSale.id),
+      );
+
+      if (!exists) {
+        return [savedSale, ...current];
+      }
+
+      return current.map((sale) =>
+        String(sale.id) === String(savedSale.id) ? savedSale : sale,
+      );
+    });
+  };
+
   const selectedShop = useMemo(
     () =>
       customers.find(
@@ -373,6 +405,11 @@ export default function SalesPage() {
   );
 
   useEffect(() => {
+    if (suppressDeliveryDraftAutofillRef.current) {
+      suppressDeliveryDraftAutofillRef.current = false;
+      return;
+    }
+
     if (saleForm.productId || saleForm.productName || deliveryProductOptions.length === 0) {
       return;
     }
@@ -998,6 +1035,27 @@ export default function SalesPage() {
     }));
   };
 
+  const confirmAmountFill = (label: string, amount: number) => {
+    setPendingAmountFill({
+      label,
+      amount: Math.max(0, Math.round(Number(amount) || 0)),
+    });
+  };
+
+  const applyPendingAmountFill = () => {
+    if (!pendingAmountFill) {
+      return;
+    }
+
+    updateSaleField("amountCollected", String(pendingAmountFill.amount));
+    setPendingAmountFill(null);
+
+    window.setTimeout(() => {
+      amountReceivedInputRef.current?.focus();
+      amountReceivedInputRef.current?.select();
+    }, 60);
+  };
+
   const chooseSaleShop = (customer: any) => {
     selectSaleShop(String(customer.id));
     setShopSearch(customer.customerName || "");
@@ -1198,12 +1256,16 @@ export default function SalesPage() {
     setEditingSale(null);
     setSaleEditForm(emptySaleForm);
     setSavingSaleEdit(false);
+    savingSaleEditRef.current = false;
   };
 
   const saveSaleEntryEdit = async () => {
-    if (!editingSale || savingSaleEdit) {
+    if (!editingSale || savingSaleEdit || savingSaleEditRef.current) {
       return;
     }
+
+    savingSaleEditRef.current = true;
+    setSavingSaleEdit(true);
 
     const quantity = Number(saleEditForm.quantity) || 0;
     const unitPrice = Number(saleEditForm.unitPrice) || 0;
@@ -1218,21 +1280,29 @@ export default function SalesPage() {
 
     if (!saleEditForm.customerId) {
       showBanner({ tone: "error", message: "Shop is required for correction." });
+      savingSaleEditRef.current = false;
+      setSavingSaleEdit(false);
       return;
     }
 
     if (!saleEditForm.productName.trim()) {
       showBanner({ tone: "error", message: "Product is required for correction." });
+      savingSaleEditRef.current = false;
+      setSavingSaleEdit(false);
       return;
     }
 
     if (quantity <= 0) {
       showBanner({ tone: "error", message: "Boxes must be greater than 0." });
+      savingSaleEditRef.current = false;
+      setSavingSaleEdit(false);
       return;
     }
 
     if (unitPrice < 0 || amountCollected < 0 || exchangeBoxes < 0) {
       showBanner({ tone: "error", message: "Amounts and boxes cannot be negative." });
+      savingSaleEditRef.current = false;
+      setSavingSaleEdit(false);
       return;
     }
 
@@ -1241,12 +1311,13 @@ export default function SalesPage() {
         tone: "error",
         message: "Collected amount cannot be greater than billable amount.",
       });
+      savingSaleEditRef.current = false;
+      setSavingSaleEdit(false);
       return;
     }
 
     try {
-      setSavingSaleEdit(true);
-      await api.put(`/api/sales/${editingSale.id}/entry`, {
+      const response = await api.put(`/api/sales/${editingSale.id}/entry`, {
         customerId: Number(saleEditForm.customerId),
         productId: saleEditForm.productId ? Number(saleEditForm.productId) : null,
         productName: optionalText(saleEditForm.productName),
@@ -1262,16 +1333,25 @@ export default function SalesPage() {
         remarks: saleEditForm.remarks,
       });
 
+      const savedSale = response?.data?.data;
       const shopName = editingSale.customerName;
-      const correctedShopId = saleEditForm.customerId;
-      closeSaleEntryEditor();
+      const correctedShopId = String(savedSale?.customerId || saleEditForm.customerId);
+      applySavedSale(savedSale);
+      setEditingSale(null);
+      setSaleEditForm(emptySaleForm);
       setDeliverySalesShopId(correctedShopId);
+      suppressDeliveryDraftAutofillRef.current = true;
+      setSaleForm({
+        ...emptySaleForm,
+        customerId: correctedShopId,
+      });
       setActiveTab("delivery");
       showBanner({
         tone: "success",
         message: `${shopName}'s delivery entry corrected successfully.`,
       });
       await refreshSalesData();
+      applySavedSale(savedSale);
       window.setTimeout(() => {
         deliveryShopSalesRef.current?.scrollIntoView({
           behavior: "smooth",
@@ -1287,6 +1367,7 @@ export default function SalesPage() {
           "Failed to correct delivery entry.",
       });
     } finally {
+      savingSaleEditRef.current = false;
       setSavingSaleEdit(false);
     }
   };
@@ -1808,16 +1889,31 @@ export default function SalesPage() {
             </div>
 
             <div className="sales-collection-grid">
-              <div className="sales-collection-card is-pending">
+              <button
+                className="sales-collection-card is-pending"
+                type="button"
+                onClick={() =>
+                  confirmAmountFill("Amount to be paid", selectedShopBalance)
+                }
+              >
                 <small>Amount to be paid</small>
                 <strong>Rs. {selectedShopBalance}</strong>
                 <span>Old pending amount before today&apos;s boxes.</span>
-              </div>
-              <div className="sales-collection-card is-collect">
+              </button>
+              <button
+                className="sales-collection-card is-collect"
+                type="button"
+                onClick={() =>
+                  confirmAmountFill(
+                    "Amount to be paid after today's boxes",
+                    moneyToCollectToday,
+                  )
+                }
+              >
                 <small>Amount to be paid after today&apos;s boxes</small>
                 <strong>Rs. {moneyToCollectToday}</strong>
                 <span>Old pending + today&apos;s bill after exchange deduction.</span>
-              </div>
+              </button>
             </div>
           </div>
         )}
@@ -1877,6 +1973,7 @@ export default function SalesPage() {
 
           <Field label="Amount Received Today" error={saleFieldErrors.amountCollected}>
             <input
+              ref={amountReceivedInputRef}
               type="number"
               value={saleForm.amountCollected}
               onChange={(event) =>
@@ -2899,6 +2996,40 @@ export default function SalesPage() {
       </Panel>
       )}
 
+      {pendingAmountFill && (
+        <div className="admin-modal-backdrop" role="presentation">
+          <div className="admin-confirm-modal sales-amount-fill-modal" role="dialog" aria-modal="true">
+            <div className="admin-confirm-icon sales-payment-icon">
+              <IndianRupee size={22} />
+            </div>
+            <div>
+              <h2>Confirm amount received</h2>
+              <p>
+                Set <strong>Amount Received Today</strong> to{" "}
+                <strong>Rs. {pendingAmountFill.amount}</strong> from{" "}
+                <strong>{pendingAmountFill.label}</strong>?
+              </p>
+            </div>
+            <div className="admin-confirm-actions">
+              <button
+                className="admin-button admin-button-secondary"
+                type="button"
+                onClick={() => setPendingAmountFill(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="admin-button"
+                type="button"
+                onClick={applyPendingAmountFill}
+              >
+                Yes, Fill Amount
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editingSale && isSuperAdmin && (
         <div className="admin-modal-backdrop" role="presentation">
           <div className="admin-confirm-modal sales-entry-edit-modal" role="dialog" aria-modal="true">
@@ -3078,7 +3209,7 @@ export default function SalesPage() {
                 onClick={saveSaleEntryEdit}
               >
                 <Save size={17} />
-                {savingSaleEdit ? "Saving..." : "Save Correction"}
+                {savingSaleEdit ? "Saving Correction..." : "Save Correction"}
               </button>
             </div>
           </div>

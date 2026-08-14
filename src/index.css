@@ -2861,6 +2861,23 @@ input {
   border: 1px solid #dbe3ea;
   border-radius: 8px;
   background: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.sales-collection-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+}
+
+.sales-collection-card:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.22);
+  outline-offset: 3px;
 }
 
 .sales-collection-card small,
@@ -2943,6 +2960,10 @@ input {
 
 .sales-collection-card.is-balance strong {
   color: #991b1b;
+}
+
+.sales-amount-fill-modal {
+  border-color: #bfdbfe;
 }
 
 .sales-exchange-note {
