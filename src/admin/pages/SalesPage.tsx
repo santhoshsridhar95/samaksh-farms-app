@@ -83,6 +83,7 @@ const emptySaleForm = {
   collectorUserId: "",
   collectorName: "",
   collectorEmail: "",
+  deliveryDate: "",
   exchangeType: "NONE",
   exchangeBoxes: "0",
   returnedBoxes: "0",
@@ -101,6 +102,7 @@ const emptyHandoverForm = {
 
 type ShopForm = typeof emptyShopForm;
 type SaleForm = typeof emptySaleForm;
+type SaleEditForm = typeof emptySaleForm;
 type HandoverForm = typeof emptyHandoverForm;
 type BoxAllocation = {
   shopId: number | string;
@@ -165,6 +167,9 @@ export default function SalesPage() {
     summaries: [],
     handovers: [],
   });
+  const [allCustomersLoaded, setAllCustomersLoaded] = useState(false);
+  const [cashLedgerLoaded, setCashLedgerLoaded] = useState(false);
+  const [usersLoaded, setUsersLoaded] = useState(false);
   const [shopSearch, setShopSearch] = useState("");
   const [shopSearchOpen, setShopSearchOpen] = useState(false);
   const [customProductName, setCustomProductName] = useState("");
@@ -177,6 +182,10 @@ export default function SalesPage() {
   const [paymentSale, setPaymentSale] = useState<any>(null);
   const [paymentReceived, setPaymentReceived] = useState("");
   const [paymentRemarks, setPaymentRemarks] = useState("");
+  const [editingSale, setEditingSale] = useState<any>(null);
+  const [saleEditForm, setSaleEditForm] =
+    useState<SaleEditForm>(emptySaleForm);
+  const [savingSaleEdit, setSavingSaleEdit] = useState(false);
   const [allocationBoxCount, setAllocationBoxCount] = useState("100");
   const [routeEmployeeCount, setRouteEmployeeCount] = useState("2");
   const [routeOrigin, setRouteOrigin] = useState("Samaksh Farms, Bengaluru");
@@ -216,7 +225,7 @@ export default function SalesPage() {
   const canDeleteShops = hasRole("SUPER_ADMIN", "SALES_ADMIN");
 
   useEffect(() => {
-    loadData();
+    loadBaseData();
   }, []);
 
   useEffect(() => {
@@ -231,30 +240,28 @@ export default function SalesPage() {
     return () => window.clearTimeout(timer);
   }, [banner]);
 
-  const loadData = async () => {
+  const loadBaseData = async () => {
     try {
-      const customerResponse = await api.get("/api/customers?size=1000");
-      const allCustomerResponse = await api.get(
-        "/api/customers?size=1000&includeInactive=true",
-      );
-      const productResponse = await api.get("/api/products");
-      const salesResponse = await api.get("/api/sales?size=1000");
-      const entitlementResponse = await api.get("/api/entitlements/me");
-      const cashLedgerResponse = await api.get("/api/cash-handovers");
-      const usersResponse = isSuperAdmin
-        ? await api.get("/api/users")
-        : null;
+      const [
+        customerResponse,
+        productResponse,
+        salesResponse,
+        entitlementResponse,
+      ] = await Promise.all([
+        api.get("/api/customers?size=1000"),
+        api.get("/api/products"),
+        api.get("/api/sales?size=1000"),
+        api.get("/api/entitlements/me"),
+      ]);
 
-      setCustomers(customerResponse?.data?.data?.content || []);
-      setAllCustomers(allCustomerResponse?.data?.data?.content || []);
+      const activeCustomers = customerResponse?.data?.data?.content || [];
+      setCustomers(activeCustomers);
+      setAllCustomers((current) =>
+        allCustomersLoaded || current.length > 0 ? current : activeCustomers,
+      );
       setProducts(productResponse.data.data || []);
       setSales(salesResponse?.data?.data?.content || []);
-      setUsers(usersResponse?.data?.data || []);
       setPermissions(entitlementResponse?.data?.data?.permissions || []);
-      setCashLedger(cashLedgerResponse?.data?.data || {
-        summaries: [],
-        handovers: [],
-      });
       setPaymentSale(null);
       setPaymentReceived("");
       setPaymentRemarks("");
@@ -267,6 +274,78 @@ export default function SalesPage() {
           "Failed to load sales setup data. Please refresh or check access.",
       });
     }
+  };
+
+  const loadAllCustomers = async (force = false) => {
+    if (allCustomersLoaded && !force) {
+      return;
+    }
+
+    try {
+      const response = await api.get("/api/customers?size=1000&includeInactive=true");
+      setAllCustomers(response?.data?.data?.content || []);
+      setAllCustomersLoaded(true);
+    } catch (error: any) {
+      console.error(error);
+      showBanner({
+        tone: "error",
+        message:
+          error?.response?.data?.message ||
+          "Failed to load full shop list.",
+      });
+    }
+  };
+
+  const loadUsers = async (force = false) => {
+    if (!isSuperAdmin || (usersLoaded && !force)) {
+      return;
+    }
+
+    try {
+      const response = await api.get("/api/users");
+      setUsers(response?.data?.data || []);
+      setUsersLoaded(true);
+    } catch (error: any) {
+      console.error(error);
+      showBanner({
+        tone: "error",
+        message:
+          error?.response?.data?.message ||
+          "Failed to load employee list.",
+      });
+    }
+  };
+
+  const loadCashLedger = async (force = false) => {
+    if (cashLedgerLoaded && !force) {
+      return;
+    }
+
+    try {
+      const response = await api.get("/api/cash-handovers");
+      setCashLedger(response?.data?.data || {
+        summaries: [],
+        handovers: [],
+      });
+      setCashLedgerLoaded(true);
+    } catch (error: any) {
+      console.error(error);
+      showBanner({
+        tone: "error",
+        message:
+          error?.response?.data?.message ||
+          "Failed to load collections data.",
+      });
+    }
+  };
+
+  const refreshSalesData = async () => {
+    await Promise.all([
+      loadBaseData(),
+      allCustomersLoaded ? loadAllCustomers(true) : Promise.resolve(),
+      cashLedgerLoaded ? loadCashLedger(true) : Promise.resolve(),
+      usersLoaded ? loadUsers(true) : Promise.resolve(),
+    ]);
   };
 
   const selectedShop = useMemo(
@@ -366,6 +445,29 @@ export default function SalesPage() {
   const deliveryShopSales = sales
     .filter((sale) => String(sale.customerId) === String(deliverySalesShopId))
     .slice(0, 5);
+  const saleEditShop = allCustomers.find(
+    (customer) => String(customer.id) === String(saleEditForm.customerId),
+  );
+  const saleEditProductOptions = useMemo(
+    () => buildDeliveryProductOptions(saleEditShop, activeProducts),
+    [activeProducts, saleEditShop],
+  );
+  const saleEditGrossAmount =
+    (Number(saleEditForm.quantity) || 0) *
+    (Number(saleEditForm.unitPrice) || 0);
+  const saleEditExchangeCredit = calculateExchangeCredit(
+    saleEditForm.exchangeType,
+    Number(saleEditForm.exchangeBoxes) || 0,
+    Number(saleEditForm.unitPrice) || 0,
+  );
+  const saleEditBillableAmount = Math.max(
+    0,
+    saleEditGrossAmount - saleEditExchangeCredit,
+  );
+  const saleEditPendingAmount = Math.max(
+    0,
+    saleEditBillableAmount - (Number(saleEditForm.amountCollected) || 0),
+  );
   const historyPageSize = 8;
   const historySalesPage = selectedHistorySales.slice(
     historyPage * historyPageSize,
@@ -444,6 +546,20 @@ export default function SalesPage() {
       setActiveTab(tabs[0].id);
     }
   }, [activeTab, tabs]);
+
+  useEffect(() => {
+    if (activeTab === "collections") {
+      loadCashLedger();
+    }
+
+    if (activeTab === "history" || activeTab === "ledger") {
+      loadAllCustomers();
+    }
+
+    if (isSuperAdmin && ["delivery", "collections", "history", "ledger"].includes(activeTab)) {
+      loadUsers();
+    }
+  }, [activeTab, isSuperAdmin]);
 
   const updateShopField = (
     field: keyof ShopForm,
@@ -537,6 +653,35 @@ export default function SalesPage() {
       delete next.productName;
       return next;
     });
+  };
+
+  const updateSaleEditField = (field: keyof SaleEditForm, value: string) => {
+    setSaleEditForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const updateSaleEditProduct = (productName: string) => {
+    const normalizedName = normalizedProductName(productName);
+    const editShop = allCustomers.find(
+      (customer) => String(customer.id) === String(saleEditForm.customerId),
+    );
+    const productOptions = buildDeliveryProductOptions(editShop, activeProducts);
+    const product = productOptions.find(
+      (item) => normalizedProductName(item.productName) === normalizedName,
+    );
+
+    setSaleEditForm((current) => ({
+      ...current,
+      productId: product?.id ? String(product.id) : "",
+      productName,
+      unitPrice:
+        product?.standardPrice !== null &&
+        product?.standardPrice !== undefined
+          ? String(product.standardPrice)
+          : current.unitPrice,
+    }));
   };
 
   const showBanner = (nextBanner: Exclude<BannerState, null>) => {
@@ -724,7 +869,7 @@ export default function SalesPage() {
 
       setShopForm(emptyShopForm);
       setShopFieldErrors({});
-      await loadData();
+      await refreshSalesData();
     } catch (error: any) {
       console.error(error);
       const backendErrors = error?.response?.data?.data;
@@ -764,7 +909,7 @@ export default function SalesPage() {
         tone: "success",
         message: `${shopName} deleted successfully.`,
       });
-      await loadData();
+      await refreshSalesData();
     } catch (error: any) {
       console.error(error);
       setShopToDelete(null);
@@ -804,22 +949,22 @@ export default function SalesPage() {
             "",
         ),
       productName:
-        latestSale?.productName ||
         shopProductName ||
+        latestSale?.productName ||
         activeProducts[0]?.productName ||
         "",
       quantity: String(
-        latestSale?.quantity ?? shop?.minimumBoxesPerDay ?? current.quantity,
+        shop?.minimumBoxesPerDay ?? latestSale?.quantity ?? current.quantity,
       ),
       unitPrice: String(
-        latestSale?.unitPrice ??
+        shop?.defaultBoxPrice ??
           selectedProduct?.standardPrice ??
-          shop?.defaultBoxPrice ??
+          latestSale?.unitPrice ??
           "50",
       ),
       shopkeeperSellingPrice: String(
-        latestSale?.shopkeeperSellingPrice ??
-          shop?.shopkeeperSellingPrice ??
+        shop?.shopkeeperSellingPrice ??
+          latestSale?.shopkeeperSellingPrice ??
           "60",
       ),
       exchangeType: latestSale?.exchangeType || shop?.exchangeType || "NONE",
@@ -895,6 +1040,11 @@ export default function SalesPage() {
               collectorEmail: saleForm.collectorEmail,
             }
           : {}),
+        ...(isSuperAdmin
+          ? {
+              deliveryDate: saleForm.deliveryDate || todayDateInputValue(),
+            }
+          : {}),
         shopkeeperSellingPrice:
           Number(saleForm.shopkeeperSellingPrice) || undefined,
         exchangeType: saleForm.exchangeType,
@@ -909,7 +1059,7 @@ export default function SalesPage() {
       });
       setDeliverySalesShopId(savedShopId);
       setSaleForm(emptySaleForm);
-      await loadData();
+      await refreshSalesData();
       window.setTimeout(() => {
         deliveryShopSalesRef.current?.scrollIntoView({
           behavior: "smooth",
@@ -1023,6 +1173,124 @@ export default function SalesPage() {
     setPaymentRemarks("");
   };
 
+  const openSaleEntryEditor = (sale: any) => {
+    setEditingSale(sale);
+    setSaleEditForm({
+      customerId: String(sale.customerId || ""),
+      productId: sale.productId ? String(sale.productId) : "",
+      productName: sale.productName || "",
+      quantity: String(sale.quantity ?? ""),
+      unitPrice: String(sale.unitPrice ?? ""),
+      shopkeeperSellingPrice: String(sale.shopkeeperSellingPrice ?? ""),
+      amountCollected: String(sale.amountCollected ?? 0),
+      collectorUserId: sale.collectorUserId ? String(sale.collectorUserId) : "",
+      collectorName: sale.collectorName || "",
+      collectorEmail: sale.collectorEmail || "",
+      deliveryDate: dateInputValue(sale.saleDate),
+      exchangeType: sale.exchangeType || "NONE",
+      exchangeBoxes: String(sale.exchangeBoxes ?? 0),
+      returnedBoxes: String(sale.returnedBoxes ?? 0),
+      remarks: sale.remarks || "",
+    });
+  };
+
+  const closeSaleEntryEditor = () => {
+    setEditingSale(null);
+    setSaleEditForm(emptySaleForm);
+    setSavingSaleEdit(false);
+  };
+
+  const saveSaleEntryEdit = async () => {
+    if (!editingSale || savingSaleEdit) {
+      return;
+    }
+
+    const quantity = Number(saleEditForm.quantity) || 0;
+    const unitPrice = Number(saleEditForm.unitPrice) || 0;
+    const exchangeBoxes = Number(saleEditForm.exchangeBoxes) || 0;
+    const amountCollected = Number(saleEditForm.amountCollected) || 0;
+    const exchangeCredit = calculateExchangeCredit(
+      saleEditForm.exchangeType,
+      exchangeBoxes,
+      unitPrice,
+    );
+    const billableAmount = Math.max(0, quantity * unitPrice - exchangeCredit);
+
+    if (!saleEditForm.customerId) {
+      showBanner({ tone: "error", message: "Shop is required for correction." });
+      return;
+    }
+
+    if (!saleEditForm.productName.trim()) {
+      showBanner({ tone: "error", message: "Product is required for correction." });
+      return;
+    }
+
+    if (quantity <= 0) {
+      showBanner({ tone: "error", message: "Boxes must be greater than 0." });
+      return;
+    }
+
+    if (unitPrice < 0 || amountCollected < 0 || exchangeBoxes < 0) {
+      showBanner({ tone: "error", message: "Amounts and boxes cannot be negative." });
+      return;
+    }
+
+    if (amountCollected > billableAmount) {
+      showBanner({
+        tone: "error",
+        message: "Collected amount cannot be greater than billable amount.",
+      });
+      return;
+    }
+
+    try {
+      setSavingSaleEdit(true);
+      await api.put(`/api/sales/${editingSale.id}/entry`, {
+        customerId: Number(saleEditForm.customerId),
+        productId: saleEditForm.productId ? Number(saleEditForm.productId) : null,
+        productName: optionalText(saleEditForm.productName),
+        quantity,
+        unitPrice,
+        amountCollected,
+        shopkeeperSellingPrice:
+          Number(saleEditForm.shopkeeperSellingPrice) || undefined,
+        exchangeType: saleEditForm.exchangeType,
+        exchangeBoxes,
+        returnedBoxes: Number(saleEditForm.returnedBoxes) || 0,
+        deliveryDate: saleEditForm.deliveryDate || undefined,
+        remarks: saleEditForm.remarks,
+      });
+
+      const shopName = editingSale.customerName;
+      const correctedShopId = saleEditForm.customerId;
+      closeSaleEntryEditor();
+      setDeliverySalesShopId(correctedShopId);
+      setActiveTab("delivery");
+      showBanner({
+        tone: "success",
+        message: `${shopName}'s delivery entry corrected successfully.`,
+      });
+      await refreshSalesData();
+      window.setTimeout(() => {
+        deliveryShopSalesRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 120);
+    } catch (error: any) {
+      console.error(error);
+      showBanner({
+        tone: "error",
+        message:
+          error?.response?.data?.message ||
+          "Failed to correct delivery entry.",
+      });
+    } finally {
+      setSavingSaleEdit(false);
+    }
+  };
+
   const savePayment = async (markPaid = false) => {
     if (!paymentSale) {
       return;
@@ -1059,7 +1327,7 @@ export default function SalesPage() {
           ? `${customerName}'s sale marked as paid.`
           : `${customerName}'s payment updated successfully.`,
       });
-      await loadData();
+      await refreshSalesData();
     } catch (error: any) {
       console.error(error);
       closePaymentEditor();
@@ -1162,7 +1430,7 @@ export default function SalesPage() {
           : "Cash handover recorded successfully.",
       });
       setHandoverForm(emptyHandoverForm);
-      await loadData();
+      await refreshSalesData();
     } catch (error: any) {
       console.error(error);
       showBanner({
@@ -1618,19 +1886,32 @@ export default function SalesPage() {
           </Field>
 
           {isSuperAdmin && (
-            <Field label="Amount Received By Employee" optional>
-              <select
-                value={saleForm.collectorUserId}
-                onChange={(event) => updateSaleCollector(event.target.value)}
-              >
-                <option value="">Logged-in user</option>
-                {collectorUsers.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name} - {user.email}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            <>
+              <Field label="Date of Delivery" required>
+                <input
+                  type="date"
+                  value={saleForm.deliveryDate || todayDateInputValue()}
+                  onChange={(event) =>
+                    updateSaleField("deliveryDate", event.target.value)
+                  }
+                />
+              </Field>
+
+              <Field label="Amount Received By Employee" optional>
+                <select
+                  value={saleForm.collectorUserId}
+                  onFocus={() => loadUsers()}
+                  onChange={(event) => updateSaleCollector(event.target.value)}
+                >
+                  <option value="">Logged-in user</option>
+                  {collectorUsers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name} - {user.email}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </>
           )}
 
           <Field label="Pending This Sale">
@@ -1720,6 +2001,7 @@ export default function SalesPage() {
                       <th>Bill</th>
                       <th>Collected</th>
                       <th>Pending</th>
+                      {isSuperAdmin && <th>Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -1731,6 +2013,18 @@ export default function SalesPage() {
                         <td>Rs. {sale.totalAmount}</td>
                         <td>Rs. {sale.amountCollected || 0}</td>
                         <td>Rs. {salePending(sale)}</td>
+                        {isSuperAdmin && (
+                          <td>
+                            <button
+                              className="admin-action-button"
+                              type="button"
+                              onClick={() => openSaleEntryEditor(sale)}
+                            >
+                              <Pencil size={15} />
+                              Edit Entry
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -2202,6 +2496,7 @@ export default function SalesPage() {
               {isSuperAdmin ? (
                 <select
                   value={handoverForm.collectorUserId}
+                  onFocus={() => loadUsers()}
                   onChange={(event) => updateHandoverCollector(event.target.value)}
                 >
                   <option value="">Select collector</option>
@@ -2418,6 +2713,7 @@ export default function SalesPage() {
                       <th>Returned</th>
                       <th>Entered By</th>
                       <th>Payment Updated</th>
+                      {isSuperAdmin && <th>Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -2438,6 +2734,18 @@ export default function SalesPage() {
                           <strong>{auditName(sale.updatedByName)}</strong>
                           <span>{sale.updatedAt ? formatDateTime(sale.updatedAt) : "-"}</span>
                         </td>
+                        {isSuperAdmin && (
+                          <td>
+                            <button
+                              className="admin-action-button"
+                              type="button"
+                              onClick={() => openSaleEntryEditor(sale)}
+                            >
+                              <Pencil size={15} />
+                              Edit Entry
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -2512,6 +2820,7 @@ export default function SalesPage() {
                   <th>Entered By</th>
                   <th>Last Updated By</th>
                   <th>Payment</th>
+                  {isSuperAdmin && <th>Correction</th>}
                 </tr>
               </thead>
               <tbody>
@@ -2569,6 +2878,18 @@ export default function SalesPage() {
                         Edit
                       </button>
                     </td>
+                    {isSuperAdmin && (
+                      <td>
+                        <button
+                          className="admin-action-button"
+                          type="button"
+                          onClick={() => openSaleEntryEditor(sale)}
+                        >
+                          <Pencil size={15} />
+                          Edit Entry
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -2576,6 +2897,192 @@ export default function SalesPage() {
           </div>
         )}
       </Panel>
+      )}
+
+      {editingSale && isSuperAdmin && (
+        <div className="admin-modal-backdrop" role="presentation">
+          <div className="admin-confirm-modal sales-entry-edit-modal" role="dialog" aria-modal="true">
+            <div className="admin-confirm-icon sales-payment-icon">
+              <Pencil size={22} />
+            </div>
+            <div>
+              <h2>Edit delivery entry</h2>
+              <p>
+                Correct the saved entry for <strong>{editingSale.customerName}</strong>.
+                Dashboard and ledger values will follow the corrected sale date and amounts.
+              </p>
+            </div>
+
+            <div className="sales-payment-summary">
+              <span>
+                <small>Billable</small>
+                <strong>Rs. {saleEditBillableAmount}</strong>
+              </span>
+              <span>
+                <small>Collected</small>
+                <strong>Rs. {Number(saleEditForm.amountCollected) || 0}</strong>
+              </span>
+              <span>
+                <small>Pending</small>
+                <strong>Rs. {saleEditPendingAmount}</strong>
+              </span>
+            </div>
+
+            <div className="admin-form-grid">
+              <Field label="Shop" required>
+                <select
+                  value={saleEditForm.customerId}
+                  onChange={(event) =>
+                    updateSaleEditField("customerId", event.target.value)
+                  }
+                >
+                  {allCustomers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.customerName} - {customer.location || "R.T. Nagar"}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Date of Delivery" required>
+                <input
+                  type="date"
+                  value={saleEditForm.deliveryDate || todayDateInputValue()}
+                  onChange={(event) =>
+                    updateSaleEditField("deliveryDate", event.target.value)
+                  }
+                />
+              </Field>
+
+              <Field label="Product" required>
+                <input
+                  list="sale-entry-edit-products"
+                  value={saleEditForm.productName}
+                  onChange={(event) => updateSaleEditProduct(event.target.value)}
+                />
+                <datalist id="sale-entry-edit-products">
+                  {saleEditProductOptions.map((product) => (
+                    <option
+                      key={optionValueForProduct(product)}
+                      value={product.productName}
+                    />
+                  ))}
+                </datalist>
+              </Field>
+
+              <Field label="Boxes" required>
+                <input
+                  type="number"
+                  value={saleEditForm.quantity}
+                  onChange={(event) =>
+                    updateSaleEditField("quantity", event.target.value)
+                  }
+                />
+              </Field>
+
+              <Field label="Unit Price" required>
+                <input
+                  type="number"
+                  value={saleEditForm.unitPrice}
+                  onChange={(event) =>
+                    updateSaleEditField("unitPrice", event.target.value)
+                  }
+                />
+              </Field>
+
+              <Field label="Gross Amount">
+                <input value={saleEditGrossAmount} readOnly />
+              </Field>
+
+              <Field label="Exchange Type">
+                <select
+                  value={saleEditForm.exchangeType}
+                  onChange={(event) =>
+                    updateSaleEditField("exchangeType", event.target.value)
+                  }
+                >
+                  {exchangeTypes.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Exchange Boxes">
+                <input
+                  type="number"
+                  value={saleEditForm.exchangeBoxes}
+                  onChange={(event) =>
+                    updateSaleEditField("exchangeBoxes", event.target.value)
+                  }
+                />
+              </Field>
+
+              <Field label="Returned Boxes">
+                <input
+                  type="number"
+                  value={saleEditForm.returnedBoxes}
+                  onChange={(event) =>
+                    updateSaleEditField("returnedBoxes", event.target.value)
+                  }
+                />
+              </Field>
+
+              <Field label="Amount Collected">
+                <input
+                  type="number"
+                  value={saleEditForm.amountCollected}
+                  onChange={(event) =>
+                    updateSaleEditField("amountCollected", event.target.value)
+                  }
+                />
+              </Field>
+
+              <Field label="Shopkeeper Selling Price">
+                <input
+                  type="number"
+                  value={saleEditForm.shopkeeperSellingPrice}
+                  onChange={(event) =>
+                    updateSaleEditField(
+                      "shopkeeperSellingPrice",
+                      event.target.value,
+                    )
+                  }
+                />
+              </Field>
+
+              <Field label="Remarks">
+                <input
+                  value={saleEditForm.remarks}
+                  onChange={(event) =>
+                    updateSaleEditField("remarks", event.target.value)
+                  }
+                />
+              </Field>
+            </div>
+
+            <div className="admin-confirm-actions">
+              <button
+                className="admin-button admin-button-secondary"
+                type="button"
+                disabled={savingSaleEdit}
+                onClick={closeSaleEntryEditor}
+              >
+                Cancel
+              </button>
+              <button
+                className="admin-button"
+                type="button"
+                disabled={savingSaleEdit}
+                onClick={saveSaleEntryEdit}
+              >
+                <Save size={17} />
+                {savingSaleEdit ? "Saving..." : "Save Correction"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {paymentSale && (
@@ -3212,6 +3719,29 @@ function parseBusinessDate(value?: string) {
 
 function auditName(value?: string) {
   return value && value !== "SYSTEM" ? value : "System";
+}
+
+function todayDateInputValue() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function dateInputValue(value?: string) {
+  const parsedDate = parseBusinessDate(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return todayDateInputValue();
+  }
+
+  const year = parsedDate.getFullYear();
+  const month = String(parsedDate.getMonth() + 1).padStart(2, "0");
+  const day = String(parsedDate.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function isBootstrapAdminUser(user: any) {

@@ -52,7 +52,6 @@ export default function App() {
               allowedRoles={[
                 "SUPER_ADMIN",
                 "FARM_MANAGER",
-                "SALES_ADMIN",
               ]}
             >
               <DashboardPage />
@@ -150,7 +149,7 @@ export default function App() {
         <Route
           path="/admin/audit"
           element={
-            <RoleBasedRoute allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN"]}>
+            <RoleBasedRoute allowedRoles={["SUPER_ADMIN", "FARM_MANAGER"]}>
               <AuditTrailPage />
             </RoleBasedRoute>
           }
@@ -168,7 +167,7 @@ export default function App() {
         <Route
           path="/admin/product-prices"
           element={
-            <RoleBasedRoute allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN"]}>
+            <RoleBasedRoute allowedRoles={["SUPER_ADMIN", "FARM_MANAGER"]}>
               <ProductPricingPage />
             </RoleBasedRoute>
           }
@@ -181,7 +180,6 @@ export default function App() {
               allowedRoles={[
                 "SUPER_ADMIN",
                 "FARM_MANAGER",
-                "SALES_ADMIN",
               ]}
             >
               <ServerKeepAlivePage />

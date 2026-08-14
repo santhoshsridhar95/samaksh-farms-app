@@ -2759,21 +2759,37 @@ input {
   grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr);
   gap: 14px;
   margin-bottom: 14px;
+  align-items: start;
+  position: relative;
+}
+
+.sales-shop-picker .admin-field:first-child {
+  position: relative;
+  z-index: 8;
 }
 
 .sales-live-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 30;
   display: grid;
   gap: 6px;
-  margin-top: 8px;
+  max-height: 286px;
+  overflow-y: auto;
+  margin-top: 0;
   padding: 8px;
   border: 1px solid #dbeafe;
   border-radius: 8px;
   background: #eff6ff;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
 }
 
 .sales-live-results button {
   display: grid;
   gap: 2px;
+  width: 100%;
   padding: 9px 10px;
   border: 1px solid #bfdbfe;
   border-radius: 8px;
@@ -3012,7 +3028,18 @@ input {
   display: grid;
   gap: 6px;
   min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
   text-align: center;
+}
+
+.dashboard-bar-item:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.28);
+  outline-offset: 4px;
+  border-radius: 8px;
 }
 
 .dashboard-bar-track {
@@ -3031,6 +3058,16 @@ input {
   background: linear-gradient(180deg, #22c55e, #166534);
 }
 
+.dashboard-bar-item:hover .dashboard-bar-track,
+.dashboard-bar-item.is-selected .dashboard-bar-track {
+  background: #dcfce7;
+  box-shadow: inset 0 0 0 2px rgba(22, 101, 52, 0.18);
+}
+
+.dashboard-bar-item.is-selected .dashboard-bar-track span {
+  background: linear-gradient(180deg, #2563eb, #1d4ed8);
+}
+
 .dashboard-bar-item small,
 .dashboard-bar-item strong {
   overflow-wrap: anywhere;
@@ -3045,6 +3082,62 @@ input {
 .dashboard-bar-item strong {
   color: #0f172a;
   font-size: 11px;
+}
+
+.dashboard-trend-detail {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.dashboard-trend-detail header {
+  margin-bottom: 0;
+}
+
+.dashboard-trend-detail h4 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.dashboard-trend-detail > header > strong {
+  color: #166534;
+  font-size: 18px;
+}
+
+.dashboard-trend-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.dashboard-trend-stats span {
+  display: grid;
+  gap: 3px;
+  min-height: 62px;
+  padding: 10px;
+  border: 1px solid #dbe3ea;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.dashboard-trend-stats small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.dashboard-trend-stats strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.dashboard-trend-buyers {
+  max-height: 280px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
 }
 
 .dashboard-pie-wrap {
@@ -3197,6 +3290,37 @@ input {
 .sales-payment-modal {
   width: min(560px, 100%);
   border-color: #bfdbfe;
+}
+
+.sales-entry-edit-modal {
+  width: min(920px, calc(100vw - 28px));
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
+  align-content: start;
+  border-color: #bfdbfe;
+}
+
+.sales-entry-edit-modal .admin-confirm-icon {
+  grid-row: span 1;
+}
+
+.sales-entry-edit-modal .admin-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+}
+
+.sales-entry-edit-modal .admin-field {
+  min-width: 0;
+}
+
+.sales-entry-edit-modal .admin-field input,
+.sales-entry-edit-modal .admin-field select {
+  width: 100%;
+}
+
+.sales-entry-edit-modal .admin-field:nth-last-child(1) {
+  grid-column: 1 / -1;
 }
 
 .admin-confirm-icon {
@@ -3756,6 +3880,14 @@ input {
     margin-bottom: 8px;
   }
 
+  .sales-shop-picker .admin-field:first-child {
+    z-index: 20;
+  }
+
+  .sales-live-results {
+    max-height: 238px;
+  }
+
   .sales-delivery-focus {
     gap: 8px;
     margin-bottom: 10px;
@@ -3836,9 +3968,35 @@ input {
     grid-column: 1 / -1;
   }
 
+  .admin-modal-backdrop {
+    align-items: start;
+    padding: 10px;
+    overflow-y: auto;
+  }
+
+  .sales-entry-edit-modal {
+    width: 100%;
+    max-height: none;
+    padding: 16px;
+  }
+
+  .sales-entry-edit-modal .admin-form-grid,
+  .sales-payment-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .sales-entry-edit-modal .admin-confirm-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
   .dashboard-bar-chart {
     grid-template-columns: repeat(7, minmax(34px, 1fr));
     gap: 6px;
+  }
+
+  .dashboard-trend-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .admin-tabbar {
