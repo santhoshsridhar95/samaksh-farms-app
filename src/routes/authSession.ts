@@ -48,17 +48,28 @@ export function markSessionStarted() {
 }
 
 export function defaultAdminPageForRoles(roles: string[]) {
-  const hasHigherAdminRole = roles.some((role) =>
-    ["SUPER_ADMIN", "FARM_MANAGER", "LABOUR"].includes(role),
-  );
-
-  if (!hasHigherAdminRole && roles.some((role) =>
-    ["SALES_ADMIN", "SALES_EMPLOYEE", "SALES_USER"].includes(role),
-  )) {
+  if (hasAnyRole(roles, [
+    "SUPER_ADMIN",
+    "FARM_MANAGER",
+    "SALES_ADMIN",
+    "SALES_EMPLOYEE",
+    "SALES_USER",
+  ])) {
     return "/admin/sales";
   }
 
+  if (hasAnyRole(roles, ["LABOUR"])) {
+    return "/admin/inventory";
+  }
+
   return AUTH_CONFIG.defaultAdminPage;
+}
+
+function hasAnyRole(
+  roles: string[],
+  allowedRoles: string[],
+) {
+  return roles.some((role) => allowedRoles.includes(role));
 }
 
 function isJwtExpired(token: string) {

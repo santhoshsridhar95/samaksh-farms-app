@@ -7,7 +7,7 @@ export const AUTH_CONFIG = {
   loginPath: "/login",
 
   defaultAdminPage:
-    "/admin/dashboard",
+    "/admin/sales",
 
   sessionTimeoutMinutes:
     Number(import.meta.env.VITE_SESSION_TIMEOUT_MINUTES || 60)

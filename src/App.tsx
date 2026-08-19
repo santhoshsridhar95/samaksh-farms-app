@@ -21,6 +21,7 @@ import ReviewManagementPage from "./admin/pages/ReviewManagementPage";
 import ProductPricingPage from "./admin/pages/ProductPricingPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import RoleBasedRoute from "./routes/RoleProtectedRoute";
+import AdminHomeRedirect from "./routes/AdminHomeRedirect";
 import { useEffect } from "react";
 import { startServerKeepAlive } from "./admin/utils/serverKeepAlive";
 
@@ -44,6 +45,8 @@ export default function App() {
         />
 
         <Route path="/verify-email" element={<VerifyEmailPage />} />
+
+        <Route path="/admin" element={<AdminHomeRedirect />} />
 
         <Route
           path="/admin/dashboard"
