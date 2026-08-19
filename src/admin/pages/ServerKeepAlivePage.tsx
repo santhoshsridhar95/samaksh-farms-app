@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Activity, Clock, Power, RefreshCw, Save } from "lucide-react";
+import { Activity, Clock, Globe, Power, RefreshCw, Save } from "lucide-react";
 
 import AdminLayout from "../components/AdminLayout";
 import { Field, PageHeader, Panel, StatCard, StatusPill } from "../components/AdminUI";
@@ -23,6 +23,10 @@ type BackendKeepAwakeSettings = {
   lastMessage?: string;
 };
 
+type PublicContentSettings = {
+  dynamicContentEnabled: boolean;
+};
+
 export default function ServerKeepAlivePage() {
   const [settings, setSettings] = useState<ServerKeepAliveSettings>(
     getServerKeepAliveSettings,
@@ -40,6 +44,11 @@ export default function ServerKeepAlivePage() {
       intervalMinutes: 10,
       targetUrl: "",
     });
+  const [publicContentSettings, setPublicContentSettings] =
+    useState<PublicContentSettings>({
+      dynamicContentEnabled: false,
+    });
+  const [publicContentSaving, setPublicContentSaving] = useState(false);
 
   useEffect(() => {
     const refreshResult = () => setLastResult(getLastServerPingResult());
@@ -52,6 +61,7 @@ export default function ServerKeepAlivePage() {
 
   useEffect(() => {
     loadBackendSettings();
+    loadPublicContentSettings();
   }, []);
 
   const updateSetting = <Key extends keyof ServerKeepAliveSettings>(
@@ -123,6 +133,35 @@ export default function ServerKeepAlivePage() {
       alert("Unable to ping from backend");
     } finally {
       setBackendPinging(false);
+    }
+  };
+
+  const loadPublicContentSettings = async () => {
+    try {
+      const response = await api.get("/api/public-content/settings");
+      setPublicContentSettings(
+        response?.data?.data || publicContentSettings,
+      );
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const savePublicContentSettings = async () => {
+    try {
+      setPublicContentSaving(true);
+      const response = await api.put(
+        "/api/server/public-content",
+        publicContentSettings,
+      );
+      setPublicContentSettings(
+        response?.data?.data || publicContentSettings,
+      );
+    } catch (error) {
+      console.error(error);
+      alert("Unable to update public website content settings");
+    } finally {
+      setPublicContentSaving(false);
     }
   };
 
@@ -334,6 +373,57 @@ export default function ServerKeepAlivePage() {
             <Save size={17} />
             {saving ? "Saved" : "Save Settings"}
           </button>
+        </div>
+      </Panel>
+
+      <Panel
+        title="Public Website Data"
+        subtitle="Controls whether the public website reads live products and published reviews from the database."
+      >
+        <div className="admin-form-grid">
+          <Field label="Live Products And Reviews">
+            <select
+              value={publicContentSettings.dynamicContentEnabled ? "true" : "false"}
+              onChange={(event) =>
+                setPublicContentSettings({
+                  dynamicContentEnabled: event.target.value === "true",
+                })
+              }
+            >
+              <option value="false">Static mode - save Neon</option>
+              <option value="true">Live mode - show DB content</option>
+            </select>
+          </Field>
+
+          <button
+            className="admin-button"
+            type="button"
+            onClick={savePublicContentSettings}
+            disabled={publicContentSaving}
+          >
+            <Globe size={17} />
+            {publicContentSaving ? "Saving" : "Save Website Data Mode"}
+          </button>
+        </div>
+
+        <div className="sales-context-strip">
+          <span>
+            <StatusPill
+              status={
+                publicContentSettings.dynamicContentEnabled
+                  ? "Live DB content"
+                  : "Static public content"
+              }
+              tone={
+                publicContentSettings.dynamicContentEnabled
+                  ? "warning"
+                  : "success"
+              }
+            />
+          </span>
+          <span>
+            Static mode avoids public product/review database reads.
+          </span>
         </div>
       </Panel>
 

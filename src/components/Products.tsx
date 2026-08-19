@@ -1,28 +1,36 @@
 import { useEffect, useState, type ReactElement, type SyntheticEvent } from "react";
 
 import {
-  fallbackProducts,
   fetchPublicProducts,
   mergeCatalogPrices,
+  staticProducts,
   type PublicProduct,
 } from "../services/publicProducts";
+import { isPublicDynamicContentEnabled } from "../config/publicContent";
 
 export default function Products(): ReactElement {
-  const [products, setProducts] = useState<PublicProduct[]>(fallbackProducts);
+  const [products, setProducts] = useState<PublicProduct[]>(staticProducts);
   const [quantities, setQuantities] = useState<Record<number, number>>({});
 
   useEffect(() => {
     let mounted = true;
 
-    fetchPublicProducts()
+    isPublicDynamicContentEnabled()
+      .then((enabled) => {
+        if (!enabled || !mounted) {
+          return undefined;
+        }
+
+        return fetchPublicProducts();
+      })
       .then((catalogProducts) => {
-        if (mounted) {
+        if (mounted && catalogProducts) {
           setProducts(mergeCatalogPrices(catalogProducts));
         }
       })
       .catch(() => {
         if (mounted) {
-          setProducts(fallbackProducts);
+          setProducts(staticProducts);
         }
       });
 

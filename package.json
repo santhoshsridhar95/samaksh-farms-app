@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "vite",
     "dev:prod": "vite --mode production",
-    "build": "vite build",
+    "snapshot:public-content": "node scripts/generate-public-content-snapshot.mjs",
+    "build": "node scripts/generate-public-content-snapshot.mjs && vite build",
     "build:dev": "vite build --mode development",
-    "build:prod": "vite build --mode production",
+    "build:prod": "node scripts/generate-public-content-snapshot.mjs && vite build --mode production",
     "lint": "eslint .",
     "preview": "vite preview",
     "preview:prod": "vite preview --mode production",
