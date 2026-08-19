@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 import api from "../api/api";
+import { isPublicDynamicContentEnabled } from "../config/publicContent";
+import { snapshotReviews } from "../generated/publicContentSnapshot";
 
 interface Review {
   id?: number;
@@ -42,6 +44,8 @@ const fallbackReviews: Review[] = [
   },
 ];
 
+const staticReviews = mergeReviews(snapshotReviews as Review[], fallbackReviews);
+
 export default function Reviews(): ReactElement {
   const getVisibleCards = (): number => {
     if (window.innerWidth < 768) return 1;
@@ -68,13 +72,23 @@ export default function Reviews(): ReactElement {
   };
 
   useEffect(() => {
-    loadReviews();
+    let mounted = true;
 
-    window.addEventListener("samaksh-review-created", loadReviews);
+    isPublicDynamicContentEnabled().then((enabled) => {
+      if (!enabled || !mounted) {
+        return;
+      }
 
-    return () =>
+      loadReviews();
+      window.addEventListener("samaksh-review-created", loadReviews);
+    });
+
+    return () => {
+      mounted = false;
       window.removeEventListener("samaksh-review-created", loadReviews);
+    };
   }, []);
+
 
   useEffect(() => {
     const handleResize = (): void => {
@@ -87,7 +101,7 @@ export default function Reviews(): ReactElement {
   }, []);
 
   const allReviews = useMemo(
-    () => mergeReviews(customerReviews, fallbackReviews),
+    () => mergeReviews(customerReviews, staticReviews),
     [customerReviews],
   );
 

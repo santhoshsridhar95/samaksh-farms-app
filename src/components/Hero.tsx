@@ -4,24 +4,33 @@ import {
   fallbackProducts,
   fetchPublicProducts,
   mergeCatalogPrices,
+  staticProducts,
   type PublicProduct,
 } from "../services/publicProducts";
+import { isPublicDynamicContentEnabled } from "../config/publicContent";
 
 export default function Hero() {
-  const [products, setProducts] = useState<PublicProduct[]>(fallbackProducts);
+  const [products, setProducts] = useState<PublicProduct[]>(staticProducts);
 
   useEffect(() => {
     let mounted = true;
 
-    fetchPublicProducts()
+    isPublicDynamicContentEnabled()
+      .then((enabled) => {
+        if (!enabled || !mounted) {
+          return undefined;
+        }
+
+        return fetchPublicProducts();
+      })
       .then((catalogProducts) => {
-        if (mounted) {
+        if (mounted && catalogProducts) {
           setProducts(mergeCatalogPrices(catalogProducts));
         }
       })
       .catch(() => {
         if (mounted) {
-          setProducts(fallbackProducts);
+          setProducts(staticProducts);
         }
       });
 

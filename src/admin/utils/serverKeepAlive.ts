@@ -23,7 +23,7 @@ const SETTINGS_EVENT = "server-keep-alive-settings-changed";
 const RESULT_EVENT = "server-keep-alive-result-changed";
 const MIN_INTERVAL_MINUTES = 1;
 const DEFAULT_SETTINGS: ServerKeepAliveSettings = {
-  enabled: true,
+  enabled: import.meta.env.PROD,
   intervalMinutes: 10,
   scheduleMode: "always",
   startTime: "08:00",
