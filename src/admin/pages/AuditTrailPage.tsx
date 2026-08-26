@@ -32,6 +32,7 @@ export default function AuditTrailPage() {
       log.userEmail,
       log.module,
       log.action,
+      log.referenceName,
       log.referenceId,
       log.remarks,
     ]
@@ -98,7 +99,7 @@ export default function AuditTrailPage() {
                   <th>User</th>
                   <th>Module</th>
                   <th>Action</th>
-                  <th>Reference</th>
+                  <th>Name / Reference</th>
                   <th>Remarks</th>
                 </tr>
               </thead>
@@ -114,7 +115,12 @@ export default function AuditTrailPage() {
                       <StatusPill status={log.module} tone="info" />
                     </td>
                     <td>{formatAction(log.action)}</td>
-                    <td>{log.referenceId || "-"}</td>
+                    <td>
+                      <strong>{log.referenceName || log.referenceId || "-"}</strong>
+                      {log.referenceName && log.referenceId && (
+                        <span>ID: {log.referenceId}</span>
+                      )}
+                    </td>
                     <td>{log.remarks || "-"}</td>
                   </tr>
                 ))}

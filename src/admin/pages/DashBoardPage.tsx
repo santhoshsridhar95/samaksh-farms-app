@@ -723,7 +723,7 @@ export default function DashboardPage() {
                   <th>Time</th>
                   <th>Person</th>
                   <th>Action</th>
-                  <th>Reference</th>
+                  <th>Name / Reference</th>
                   <th>Remarks</th>
                 </tr>
               </thead>
@@ -736,7 +736,12 @@ export default function DashboardPage() {
                       <span>{log.userEmail || "-"}</span>
                     </td>
                     <td>{formatAction(log.action)}</td>
-                    <td>{log.referenceId || "-"}</td>
+                    <td>
+                      <strong>{log.referenceName || log.referenceId || "-"}</strong>
+                      {log.referenceName && log.referenceId && (
+                        <span>ID: {log.referenceId}</span>
+                      )}
+                    </td>
                     <td>{log.remarks || "-"}</td>
                   </tr>
                 ))}
