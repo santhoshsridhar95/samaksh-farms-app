@@ -501,9 +501,15 @@ export default function SalesPage() {
     0,
     saleEditGrossAmount - saleEditExchangeCredit,
   );
+  const saleEditAmountReceivedToday =
+    Number(saleEditForm.amountCollected) || 0;
+  const saleEditAmountAppliedHere = Math.min(
+    saleEditBillableAmount,
+    saleEditAmountReceivedToday,
+  );
   const saleEditPendingAmount = Math.max(
     0,
-    saleEditBillableAmount - (Number(saleEditForm.amountCollected) || 0),
+    saleEditBillableAmount - saleEditAmountAppliedHere,
   );
   const historyPageSize = 8;
   const historySalesPage = selectedHistorySales.slice(
@@ -1240,7 +1246,7 @@ export default function SalesPage() {
       quantity: String(sale.quantity ?? ""),
       unitPrice: String(sale.unitPrice ?? ""),
       shopkeeperSellingPrice: String(sale.shopkeeperSellingPrice ?? ""),
-      amountCollected: String(sale.amountCollected ?? 0),
+      amountCollected: String(saleReceivedToday(sale)),
       collectorUserId: sale.collectorUserId ? String(sale.collectorUserId) : "",
       collectorName: sale.collectorName || "",
       collectorEmail: sale.collectorEmail || "",
@@ -1270,7 +1276,7 @@ export default function SalesPage() {
     const quantity = Number(saleEditForm.quantity) || 0;
     const unitPrice = Number(saleEditForm.unitPrice) || 0;
     const exchangeBoxes = Number(saleEditForm.exchangeBoxes) || 0;
-    const amountCollected = Number(saleEditForm.amountCollected) || 0;
+    const amountReceivedTodayForEdit = Number(saleEditForm.amountCollected) || 0;
     const exchangeCredit = calculateExchangeCredit(
       saleEditForm.exchangeType,
       exchangeBoxes,
@@ -1299,18 +1305,8 @@ export default function SalesPage() {
       return;
     }
 
-    if (unitPrice < 0 || amountCollected < 0 || exchangeBoxes < 0) {
+    if (unitPrice < 0 || amountReceivedTodayForEdit < 0 || exchangeBoxes < 0) {
       showBanner({ tone: "error", message: "Amounts and boxes cannot be negative." });
-      savingSaleEditRef.current = false;
-      setSavingSaleEdit(false);
-      return;
-    }
-
-    if (amountCollected > billableAmount) {
-      showBanner({
-        tone: "error",
-        message: "Collected amount cannot be greater than billable amount.",
-      });
       savingSaleEditRef.current = false;
       setSavingSaleEdit(false);
       return;
@@ -1323,7 +1319,8 @@ export default function SalesPage() {
         productName: optionalText(saleEditForm.productName),
         quantity,
         unitPrice,
-        amountCollected,
+        amountCollected: Math.min(billableAmount, amountReceivedTodayForEdit),
+        amountReceivedToday: amountReceivedTodayForEdit,
         shopkeeperSellingPrice:
           Number(saleEditForm.shopkeeperSellingPrice) || undefined,
         exchangeType: saleEditForm.exchangeType,
@@ -2080,7 +2077,9 @@ export default function SalesPage() {
                   {deliverySalesShop?.customerName || "Selected shop"}
                 </strong>
               </div>
-              <span>{deliveryShopSales.length} recent entries</span>
+              <span className="delivery-shop-sales-count">
+                {deliveryShopSales.length} recent entries
+              </span>
             </div>
 
             {deliveryShopSales.length === 0 ? (
@@ -2096,7 +2095,7 @@ export default function SalesPage() {
                       <th>Product</th>
                       <th>Boxes</th>
                       <th>Bill</th>
-                      <th>Collected</th>
+                      <th>Received Today</th>
                       <th>Pending</th>
                       {isSuperAdmin && <th>Actions</th>}
                     </tr>
@@ -2104,14 +2103,41 @@ export default function SalesPage() {
                   <tbody>
                     {deliveryShopSales.map((sale) => (
                       <tr key={sale.id}>
-                        <td>{formatDate(sale.saleDate)}</td>
-                        <td>{sale.productName}</td>
-                        <td>{sale.quantity}</td>
-                        <td>Rs. {sale.totalAmount}</td>
-                        <td>Rs. {sale.amountCollected || 0}</td>
-                        <td>Rs. {salePending(sale)}</td>
+                        <td data-label="Date">{formatDate(sale.saleDate)}</td>
+                        <td data-label="Product">
+                          <strong className="delivery-shop-product">
+                            {sale.productName}
+                          </strong>
+                        </td>
+                        <td data-label="Boxes">
+                          <span className="delivery-shop-boxes">{sale.quantity}</span>
+                        </td>
+                        <td data-label="Bill">
+                          <span className="delivery-shop-money">Rs. {sale.totalAmount}</span>
+                        </td>
+                        <td data-label="Received Today">
+                          <strong className="delivery-shop-money delivery-shop-money-positive">
+                            Rs. {saleReceivedToday(sale)}
+                          </strong>
+                          {showAppliedHere(sale) && (
+                            <span className="delivery-shop-subtext">
+                              Applied here: Rs. {sale.amountCollected || 0}
+                            </span>
+                          )}
+                        </td>
+                        <td data-label="Pending">
+                          <span
+                            className={
+                              salePending(sale) > 0
+                                ? "delivery-shop-money delivery-shop-money-pending"
+                                : "delivery-shop-money"
+                            }
+                          >
+                            Rs. {salePending(sale)}
+                          </span>
+                        </td>
                         {isSuperAdmin && (
-                          <td>
+                          <td data-label="Actions">
                             <button
                               className="admin-action-button"
                               type="button"
@@ -2805,7 +2831,7 @@ export default function SalesPage() {
                       <th>Boxes</th>
                       <th>Unit</th>
                       <th>Total</th>
-                      <th>Collected</th>
+                      <th>Received Today</th>
                       <th>Pending</th>
                       <th>Returned</th>
                       <th>Entered By</th>
@@ -2820,7 +2846,12 @@ export default function SalesPage() {
                         <td>{sale.quantity}</td>
                         <td>Rs. {sale.unitPrice}</td>
                         <td>Rs. {sale.totalAmount}</td>
-                        <td>Rs. {sale.amountCollected ?? 0}</td>
+                        <td>
+                          <strong>Rs. {saleReceivedToday(sale)}</strong>
+                          {showAppliedHere(sale) && (
+                            <span>Applied here: Rs. {sale.amountCollected ?? 0}</span>
+                          )}
+                        </td>
                         <td>Rs. {salePending(sale)}</td>
                         <td>{sale.returnedBoxes ?? 0}</td>
                         <td>
@@ -2908,7 +2939,7 @@ export default function SalesPage() {
                   <th>Boxes</th>
                   <th>Unit</th>
                   <th>Total</th>
-                  <th>Collected</th>
+                  <th>Received Today</th>
                   <th>Pending</th>
                   <th>Selling Price</th>
                   <th>Exchange</th>
@@ -2934,7 +2965,12 @@ export default function SalesPage() {
                     <td>{sale.quantity}</td>
                     <td>Rs. {sale.unitPrice}</td>
                     <td>Rs. {sale.totalAmount}</td>
-                    <td>Rs. {sale.amountCollected ?? 0}</td>
+                    <td>
+                      <strong>Rs. {saleReceivedToday(sale)}</strong>
+                      {showAppliedHere(sale) && (
+                        <span>Applied here: Rs. {sale.amountCollected ?? 0}</span>
+                      )}
+                    </td>
                     <td>Rs. {salePending(sale)}</td>
                     <td>Rs. {sale.shopkeeperSellingPrice ?? 0}</td>
                     <td>
@@ -3033,33 +3069,40 @@ export default function SalesPage() {
       {editingSale && isSuperAdmin && (
         <div className="admin-modal-backdrop" role="presentation">
           <div className="admin-confirm-modal sales-entry-edit-modal" role="dialog" aria-modal="true">
-            <div className="admin-confirm-icon sales-payment-icon">
-              <Pencil size={22} />
-            </div>
-            <div>
-              <h2>Edit delivery entry</h2>
-              <p>
-                Correct the saved entry for <strong>{editingSale.customerName}</strong>.
-                Dashboard and ledger values will follow the corrected sale date and amounts.
-              </p>
-            </div>
-
-            <div className="sales-payment-summary">
-              <span>
-                <small>Billable</small>
-                <strong>Rs. {saleEditBillableAmount}</strong>
-              </span>
-              <span>
-                <small>Collected</small>
-                <strong>Rs. {Number(saleEditForm.amountCollected) || 0}</strong>
-              </span>
-              <span>
-                <small>Pending</small>
-                <strong>Rs. {saleEditPendingAmount}</strong>
-              </span>
+            <div className="sales-entry-edit-header">
+              <div className="admin-confirm-icon sales-payment-icon">
+                <Pencil size={22} />
+              </div>
+              <div>
+                <h2>Edit delivery entry</h2>
+                <p>
+                  Correct the saved entry for <strong>{editingSale.customerName}</strong>.
+                  Dashboard and ledger values will follow the corrected sale date and amounts.
+                </p>
+              </div>
             </div>
 
-            <div className="admin-form-grid">
+            <div className="sales-entry-edit-body">
+              <div className="sales-payment-summary sales-entry-edit-summary">
+                <span>
+                  <small>Billable</small>
+                  <strong>Rs. {saleEditBillableAmount}</strong>
+                </span>
+                <span>
+                  <small>Received Today</small>
+                  <strong>Rs. {saleEditAmountReceivedToday}</strong>
+                </span>
+                <span>
+                  <small>Applied Here</small>
+                  <strong>Rs. {saleEditAmountAppliedHere}</strong>
+                </span>
+                <span>
+                  <small>Pending</small>
+                  <strong>Rs. {saleEditPendingAmount}</strong>
+                </span>
+              </div>
+
+              <div className="admin-form-grid sales-entry-edit-grid">
               <Field label="Shop" required>
                 <select
                   value={saleEditForm.customerId}
@@ -3160,7 +3203,7 @@ export default function SalesPage() {
                 />
               </Field>
 
-              <Field label="Amount Collected">
+              <Field label="Amount Received Today">
                 <input
                   type="number"
                   value={saleEditForm.amountCollected}
@@ -3192,8 +3235,9 @@ export default function SalesPage() {
                 />
               </Field>
             </div>
+            </div>
 
-            <div className="admin-confirm-actions">
+            <div className="admin-confirm-actions sales-entry-edit-actions">
               <button
                 className="admin-button admin-button-secondary"
                 type="button"
@@ -3414,6 +3458,18 @@ function salePending(sale: any) {
   }
 
   return (Number(sale.totalAmount) || 0) - (Number(sale.amountCollected) || 0);
+}
+
+function saleReceivedToday(sale: any) {
+  return Number(sale.amountReceivedToday ?? sale.amountCollected ?? 0) || 0;
+}
+
+function showAppliedHere(sale: any) {
+  return (
+    sale.amountReceivedToday !== null &&
+    sale.amountReceivedToday !== undefined &&
+    Number(sale.amountReceivedToday) !== Number(sale.amountCollected || 0)
+  );
 }
 
 function sumBy(items: any[] = [], field: string) {
