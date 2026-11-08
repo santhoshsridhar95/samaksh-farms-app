@@ -543,3 +543,12 @@ function crc32(data: Uint8Array) {
 
   return (crc ^ 0xffffffff) >>> 0;
 }
+
+export function downloadImportWorkbook(module:string, fields:{name:string;required:boolean;defaultValue:string;type:string;choices:string[]}[],lookups:Record<string,{value:string|number;label:string}[]>,help:string){
+ const column=(index:number)=>{let n=index+1,s="";while(n){n--;s=String.fromCharCode(65+n%26)+s;n=Math.floor(n/26);}return s;};
+ const sheet=(rows:string[][])=>worksheetXml({columns:'<cols><col min="1" max="40" width="25" customWidth="1"/></cols>',rows:rows.map((row,i)=>rowXml(i+1,row.map((value,j)=>textCell(column(j)+(i+1),value,i===0?1:0)))).join("")});
+ const workbookSheets:WorkbookSheet[]=[{name:"Data",xml:sheet([fields.map(f=>f.name),fields.map(f=>f.defaultValue||"")])},{name:"Instructions",xml:sheet([["Field","Required","Type / allowed values"],["Instructions",help,"Use first sheet Data; one module per upload. Maximum 200 rows. Paste values, not formulas."],["externalReference","Yes","Unique reference from your Excel/source ledger. Keep it unchanged when retrying."],["Dates","YYYY-MM-DD","Excel dates are also accepted; text is recommended."],...fields.map(f=>[f.name,f.required?"Yes":"Optional",f.choices.length?f.choices.join(", "):f.type])])},{name:"Reference IDs",xml:sheet([["Field","ID / code","Name"],...Object.entries(lookups).flatMap(([field,values])=>values.map(v=>[field,String(v.value),v.label]))])}];
+ const files:Record<string,string|Uint8Array>={"[Content_Types].xml":contentTypesXml(workbookSheets.length),"_rels/.rels":rootRelsXml(),"xl/workbook.xml":workbookXml(workbookSheets),"xl/_rels/workbook.xml.rels":workbookRelsXml(workbookSheets.length),"xl/styles.xml":stylesXml()};
+ workbookSheets.forEach((s,i)=>{files['xl/worksheets/sheet'+(i+1)+'.xml']=s.xml;});
+ const url=URL.createObjectURL(new Blob([createZip(files)],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));const link=document.createElement("a");link.href=url;link.download='Historical-'+module+'.xlsx';link.click();URL.revokeObjectURL(url);
+}

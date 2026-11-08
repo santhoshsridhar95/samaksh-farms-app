@@ -1,120 +1,43 @@
-import { useEffect, useState } from "react";
-import { Boxes, Hash, PackageCheck } from "lucide-react";
-
+import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 import AdminLayout from "../components/AdminLayout";
-import AddInventoryModal from "../components/AddInventoryModal";
-import { EmptyState, PageHeader, Panel, StatCard, StatusPill } from "../components/AdminUI";
-import api from "../services/api";
-
-export default function InventoryPage() {
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadTransactions();
-  }, []);
-
-  const loadTransactions = async () => {
-    try {
-      const response = await api.get("/api/inventory-transactions");
-      setTransactions(response.data.data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const totalQuantity = transactions.reduce(
-    (total, transaction) => total + (Number(transaction.quantity) || 0),
-    0
-  );
-
-  const purchaseCount = transactions.filter(
-    (transaction) => transaction.transactionType === "PURCHASE"
-  ).length;
-
-  return (
-    <AdminLayout>
-      <PageHeader
-        eyebrow="Inventory"
-        title="Inventory Management"
-        subtitle="Track spawn, pellet, and bag movements with cleaner stock records."
-      />
-
-      <div className="admin-stat-grid">
-        <StatCard
-          label="Transactions"
-          value={transactions.length}
-          icon={<Hash size={20} />}
-          tone="blue"
-          helper="Total stock movements"
-        />
-
-        <StatCard
-          label="Purchase Entries"
-          value={purchaseCount}
-          icon={<PackageCheck size={20} />}
-          tone="green"
-          helper="Incoming inventory records"
-        />
-
-        <StatCard
-          label="Quantity Logged"
-          value={totalQuantity}
-          icon={<Boxes size={20} />}
-          tone="slate"
-          helper="Across all inventory types"
-        />
-      </div>
-
-      <AddInventoryModal onSuccess={loadTransactions} />
-
-      <Panel
-        title="Inventory Ledger"
-        subtitle="Recent movement records shown as scannable cards."
-      >
-        {loading && <div className="admin-loading">Loading inventory records...</div>}
-
-        {!loading && transactions.length === 0 && (
-          <EmptyState
-            title="No inventory transactions yet"
-            message="Add the first stock movement above to begin the ledger."
-          />
-        )}
-
-        {!loading && transactions.length > 0 && (
-          <div className="admin-record-grid">
-            {transactions.map((transaction) => (
-              <article className="admin-record-card" key={transaction.id}>
-                <header>
-                  <div>
-                    <h3>{transaction.inventoryType}</h3>
-                    <small>Transaction #{transaction.id}</small>
-                  </div>
-
-                  <StatusPill status={transaction.transactionType} />
-                </header>
-
-                <div className="admin-record-details">
-                  <div>
-                    <span>Quantity</span>
-                    <strong>{transaction.quantity}</strong>
-                  </div>
-                  <div>
-                    <span>Remarks</span>
-                    <strong>{transaction.remarks || "No remarks"}</strong>
-                  </div>
-                  <div>
-                    <span>User</span>
-                    <strong>{transaction.createdByEmail || "System"}</strong>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </Panel>
-    </AdminLayout>
-  );
+import { Field, PageHeader, Panel } from "../components/AdminUI";
+import { getStoredRoles } from "../../routes/authSession";
+import api, { invalidateReadCache } from "../services/api";
+import { MoneyDialog, MoneySpinner, errorMessage, todayIndia } from "./MoneyPage";
+import "./MoneyPage.css";
+type Option={id:string;category:string;code:string;label:string;unit:string;effect:number;active:boolean};
+type Movement={transactionDate?:string;id:number;inventoryType:string;transactionType:string;quantity:number;stockEffect?:number;remarks:string;createdAt?:string;createdByEmail:string;productionBatchCode?:string};
+const emptyMovement={transactionDate:todayIndia(),inventoryType:"",transactionType:"PURCHASE",quantity:"",remarks:""};
+const emptyOption={id:"",category:"ITEM",code:"",label:"",unit:"kg",effect:1,active:true};
+export default function InventoryPage({embedded=false}:{embedded?:boolean}){
+ const Wrapper=embedded?Fragment:AdminLayout;
+ const [rows,setRows]=useState<Movement[]>([]),[options,setOptions]=useState<Option[]>([]),[tab,setTab]=useState("stock"),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[message,setMessage]=useState("");
+ const [dialog,setDialog]=useState<"movement"|"option"|null>(null),[editing,setEditing]=useState<number|null>(null),[form,setForm]=useState(emptyMovement),[option,setOption]=useState(emptyOption);
+ const submitting=useRef(false);const roles=getStoredRoles(),admin=roles.includes("SUPER_ADMIN"),manage=admin||roles.includes("FARM_MANAGER");
+ const items=options.filter(o=>o.category==="ITEM"),types=options.filter(o=>o.category==="MOVEMENT");
+ async function fetchData(){const [a,b]=await Promise.all([api.get("/api/inventory-transactions"),api.get("/api/inventory-options")]);setRows(a.data.data);setOptions(b.data.data);}
+ async function refresh(force=false) { if(force)invalidateReadCache();setLoading(true);setError("");try{await fetchData();}catch(e){setError(errorMessage(e));}finally{setLoading(false);}}
+ useEffect(()=>{void refresh();},[]);
+ function openMovement(r?:Movement){setEditing(r?.id??null);setForm(r?{transactionDate:r.transactionDate||r.createdAt?.slice(0,10)||todayIndia(),inventoryType:r.inventoryType,transactionType:r.transactionType,quantity:String(r.quantity),remarks:r.remarks||""}:emptyMovement);setError("");setDialog("movement");}
+ function openOption(o?:Option){setOption(o||emptyOption);setError("");setDialog("option");}
+ async function save(e:FormEvent){e.preventDefault();if(submitting.current)return;submitting.current=true;setBusy(true);setError("");setMessage("");try{
+  if(dialog==="movement"){const payload={...form,quantity:Number(form.quantity)};if(editing)await api.put('/api/inventory-transactions/'+editing,payload);else await api.post("/api/inventory-transactions",payload);}
+  else {if(option.id)await api.put('/api/inventory-options/'+encodeURIComponent(option.id),option);else await api.post("/api/inventory-options",option);}
+  setDialog(null);setMessage("Saved successfully. Stock and audit history updated.");try{await fetchData();}catch(e){setError("Saved, but refresh failed. "+errorMessage(e));}
+ }catch(e){setError(errorMessage(e));}finally{submitting.current=false;setBusy(false);}}
+ const label=(category:string,code:string)=>options.find(o=>o.category===category&&o.code===code)?.label||code;
+ const linked=(r:Movement)=>!!r.productionBatchCode||/^(Consumed in batch |Damaged during batch )/.test(r.remarks||"");
+ return <Wrapper><PageHeader title="Inventory" subtitle="Stock balances, movement history and configurable inventory types." actions={<button className="admin-button admin-button-secondary" disabled={loading||busy} onClick={()=>refresh(true)}>{loading&&<MoneySpinner/>}Refresh</button>}/>
+ <div className="money-actions">{["stock","transactions","types"].map(t=><button key={t} className={'admin-button '+(tab===t?'':'admin-button-secondary')} onClick={()=>setTab(t)}>{t==="stock"?"Stock balances":t==="transactions"?"Transactions":"Inventory & transaction types"}</button>)}{manage&&<button className="admin-button" disabled={loading} onClick={()=>tab==="types"?openOption():openMovement()}>{tab==="types"?"Add type":"Add inventory movement"}</button>}</div>
+ {error&&!dialog&&<p className="money-error" role="alert">{error}</p>}{message&&<p className="money-success" role="status">{message}</p>}
+ <Panel title={tab==="stock"?"Available stock":tab==="transactions"?"Inventory transactions":"Manage types"}><div style={{overflowX:"auto"}}><table className="money-table"><thead><tr>{(tab==="stock"?["Inventory","Unit","Available"]:tab==="transactions"?["Date / user","Inventory","Type","Quantity","Remarks","Action"]:["Category","Name / code","Unit / direction","Status","Action"]).map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>
+ {tab==="stock"&&items.map(o=><tr key={o.id}><td>{o.label}</td><td>{o.unit}</td><td>{rows.filter(r=>r.inventoryType===o.code).reduce((n,r)=>n+r.quantity*(r.stockEffect??(["PURCHASE","ADJUSTMENT"].includes(r.transactionType)?1:-1)),0).toLocaleString("en-IN",{maximumFractionDigits:3})}</td></tr>)}
+ {tab==="transactions"&&[...rows].sort((a,b)=>b.id-a.id).map(r=><tr key={r.id}><td>{r.transactionDate||r.createdAt?.slice(0,10)||"—"}<small>{r.createdByEmail}</small></td><td>{label("ITEM",r.inventoryType)}</td><td>{label("MOVEMENT",r.transactionType)}</td><td>{r.quantity} {items.find(o=>o.code===r.inventoryType)?.unit}</td><td style={{whiteSpace:"normal"}}>{r.remarks||"—"}</td><td>{linked(r)?"Managed in Production":admin?<button className="admin-button admin-button-secondary" onClick={()=>openMovement(r)}>Edit</button>:"—"}</td></tr>)}
+ {tab==="types"&&options.map(o=><tr key={o.id}><td>{o.category==="ITEM"?"Inventory":"Transaction"}</td><td>{o.label}<small>{o.code}</small></td><td>{o.category==="ITEM"?o.unit:o.effect===1?"Stock increase":"Stock decrease"}</td><td>{o.active?"Active":"Inactive"}</td><td>{admin&&<button className="admin-button admin-button-secondary" onClick={()=>openOption(o)}>Edit</button>}</td></tr>)}
+ {!loading&&((tab==="transactions"&&!rows.length)||(tab!=="transactions"&&!options.length))&&<tr><td colSpan={6}>No records yet.</td></tr>}</tbody></table></div></Panel>
+ {dialog&&<MoneyDialog title={dialog==="movement"?(editing?"Edit inventory movement":"Add inventory movement"):(option.id?"Edit type":"Add type")} busy={busy} close={()=>setDialog(null)}><form onSubmit={save}><fieldset disabled={busy} className="money-fieldset money-form">
+ {dialog==="movement"?<><Field label="Transaction date"><input required type="date" max={todayIndia()} value={form.transactionDate} onChange={e=>setForm({...form,transactionDate:e.target.value})}/></Field><Field label="Inventory type"><select required value={form.inventoryType} onChange={e=>setForm({...form,inventoryType:e.target.value})}><option value="">Choose inventory</option>{items.filter(o=>o.active||o.code===form.inventoryType).map(o=><option key={o.id} value={o.code}>{o.label} ({o.unit})</option>)}</select></Field><Field label="Transaction type"><select required value={form.transactionType} onChange={e=>setForm({...form,transactionType:e.target.value})}>{types.filter(o=>o.active||o.code===form.transactionType).map(o=><option key={o.id} value={o.code}>{o.label} ({o.effect===1?"increase":"decrease"})</option>)}</select></Field><Field label="Quantity"><input required type="number" min="0.001" step="0.001" value={form.quantity} onChange={e=>setForm({...form,quantity:e.target.value})}/></Field><Field label="Remarks"><input value={form.remarks} onChange={e=>setForm({...form,remarks:e.target.value})}/></Field></>:<>
+ <Field label="Category"><select disabled={!!option.id} value={option.category} onChange={e=>setOption({...option,category:e.target.value})}><option value="ITEM">Inventory type</option><option value="MOVEMENT">Transaction type</option></select></Field><Field label="Code (permanent identifier)"><input required readOnly={!!option.id} pattern="[A-Za-z][A-Za-z0-9_]{0,39}" value={option.code} onChange={e=>setOption({...option,code:e.target.value.toUpperCase()})}/></Field><Field label="Display name"><input required maxLength={100} value={option.label} onChange={e=>setOption({...option,label:e.target.value})}/></Field>{option.category==="ITEM"?<Field label="Unit"><input required maxLength={30} value={option.unit} onChange={e=>setOption({...option,unit:e.target.value})}/></Field>:<Field label="Stock direction"><select value={option.effect} onChange={e=>setOption({...option,effect:Number(e.target.value)})}><option value={1}>Increase stock</option><option value={-1}>Decrease stock</option></select></Field>}<Field label="Status"><select value={String(option.active)} onChange={e=>setOption({...option,active:e.target.value==="true"})}><option value="true">Active</option><option value="false">Inactive</option></select></Field></>}
+ {error&&<p className="money-error money-wide" role="alert">{error}</p>}<div className="money-dialog-actions money-wide"><button className="admin-button" type="submit" disabled={busy}>{busy&&<MoneySpinner/>}{busy?"Saving…":"Save"}</button></div></fieldset></form></MoneyDialog>}
+ </Wrapper>;
 }

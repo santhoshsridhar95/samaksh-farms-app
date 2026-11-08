@@ -1,3 +1,4 @@
+import { canAccessSection } from "../../routes/roleAccess";
 import {
   ClipboardList,
   Factory,
@@ -8,8 +9,8 @@ import {
   MessageSquareText,
   Package,
   Server,
-  Repeat2,
-  Sprout,
+
+
   Users,
 } from "lucide-react";
 
@@ -22,82 +23,60 @@ export default function Sidebar() {
   const roles = getStoredRoles();
 
   const menuItems = [
+    {to:"/admin/historical-data",label:"Historical Data",icon:History},
+    { to: "/admin/sourcing", label: "Sourcing & Vendors", icon: Package },
+    { to: "/admin/money", label: "Money & Expenses", icon: IndianRupee },
     {
       to: "/admin/dashboard",
       label: "Dashboard",
       icon: LayoutDashboard,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER"],
     },
+
     {
-      to: "/admin/inventory",
-      label: "Inventory",
-      icon: Package,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER", "LABOUR"],
-    },
-    {
-      to: "/admin/production",
-      label: "Production",
+      to: "/admin/farm-operations",
+      label: "Farm Operations",
       icon: Factory,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER", "LABOUR"],
     },
-    {
-      to: "/admin/room-transfer",
-      label: "Room Transfer",
-      icon: Repeat2,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER", "LABOUR"],
-    },
-    {
-      to: "/admin/harvest",
-      label: "Harvest",
-      icon: Sprout,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER", "LABOUR"],
-    },
+
     {
       to: "/admin/orders",
       label: "Orders",
       icon: ClipboardList,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN", "SALES_EMPLOYEE", "SALES_USER"],
     },
     {
       to: "/admin/sales",
       label: "Sales",
       icon: IndianRupee,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN", "SALES_EMPLOYEE", "SALES_USER"],
     },
     {
       to: "/admin/users",
       label: "Users",
       icon: Users,
-      roles: ["SUPER_ADMIN"],
     },
     {
       to: "/admin/audit",
       label: "Audit",
       icon: History,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER"],
     },
     {
       to: "/admin/reviews",
       label: "Reviews",
       icon: MessageSquareText,
-      roles: ["SUPER_ADMIN"],
     },
     {
       to: "/admin/product-prices",
       label: "Product Prices",
       icon: IndianRupee,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER"],
     },
     {
       to: "/admin/server",
       label: "Server",
       icon: Server,
-      roles: ["SUPER_ADMIN", "FARM_MANAGER"],
     },
   ];
 
   const visibleMenus = menuItems.filter(
-    (item) => roles.some((role) => item.roles.includes(role)),
+    (item) => canAccessSection(roles, item.to.split("/").pop() || ""),
   );
 
   const logout = () => {

@@ -1,16 +1,23 @@
-import { useEffect, useState } from "react";
-import { AlertTriangle, Repeat2, Save, Sprout } from "lucide-react";
+import { MoneySpinner, errorMessage, todayIndia } from "./MoneyPage";
+import "./MoneyPage.css";
+import { Fragment } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Save } from "lucide-react";
 
 import AdminLayout from "../components/AdminLayout";
-import { EmptyState, Field, PageHeader, Panel, StatCard, StatusPill } from "../components/AdminUI";
+import { EmptyState, Field, PageHeader, Panel } from "../components/AdminUI";
 import api from "../services/api";
 
-export default function RoomTransferPage() {
+export default function RoomTransferPage({embedded=false}:{embedded?:boolean}) {
+  const Wrapper=embedded?Fragment:AdminLayout;
+  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[message,setMessage]=useState("");
+  const saving=useRef(false);
   const [batches, setBatches] = useState<any[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState("");
   const [movedToLightRoom, setMovedToLightRoom] = useState("");
   const [contaminatedBags, setContaminatedBags] = useState("");
   const [discardedBags, setDiscardedBags] = useState("");
+  const [movementDate,setMovementDate]=useState(todayIndia);
   const [remarks, setRemarks] = useState("");
 
   useEffect(() => {
@@ -22,20 +29,23 @@ export default function RoomTransferPage() {
       const response = await api.get("/api/production");
       setBatches(response.data.data);
     } catch (error) {
-      console.error(error);
+      setError(errorMessage(error));
     }
   };
 
   const transfer = async () => {
+    if(saving.current)return;
     if (!selectedBatchId) {
       alert("Please select a batch");
       return;
     }
 
     try {
+      saving.current=true;setBusy(true);setError("");setMessage("");
       await api.put(
         `/api/production/${selectedBatchId}/transfer-light-room`,
         {
+          movementDate,
           movedToLightRoom: movedToLightRoom ? Number(movedToLightRoom) : 0,
           contaminatedBags: contaminatedBags ? Number(contaminatedBags) : 0,
           discardedBags: discardedBags ? Number(discardedBags) : 0,
@@ -43,18 +53,17 @@ export default function RoomTransferPage() {
         }
       );
 
-      alert("Transfer successful");
+      setMessage("Transfer saved successfully.");
 
       setMovedToLightRoom("");
       setContaminatedBags("");
       setDiscardedBags("");
       setRemarks("");
 
-      loadBatches();
+      await loadBatches();
     } catch (error: any) {
-      console.error(error);
-      alert(error?.response?.data?.message || "Transfer failed");
-    }
+      setError(errorMessage(error));
+    } finally { saving.current=false;setBusy(false); }
   };
 
   const darkRoomTotal = batches.reduce(
@@ -76,40 +85,22 @@ export default function RoomTransferPage() {
   );
 
   return (
-    <AdminLayout>
+    <Wrapper>
+      {error&&<p className="money-error" role="alert">{error}</p>}{message&&<p className="money-success" role="status">{message}</p>}
       <PageHeader
         eyebrow="Room Transfer"
         title="Room Transfer"
         subtitle="Move bags from dark room to light room and capture losses cleanly."
       />
 
-      <div className="admin-stat-grid">
-        <StatCard
-          label="Dark Room"
-          value={darkRoomTotal}
-          icon={<Sprout size={20} />}
-          tone="slate"
-        />
-        <StatCard
-          label="Light Room"
-          value={lightRoomTotal}
-          icon={<Repeat2 size={20} />}
-          tone="blue"
-        />
-        <StatCard
-          label="Recorded Loss"
-          value={lossTotal}
-          icon={<AlertTriangle size={20} />}
-          tone="red"
-        />
-      </div>
+<div style={{overflowX:"auto",marginBottom:20}}><table className="money-table"><thead><tr><th>Dark room bags</th><th>Light room bags</th><th>Recorded loss</th></tr></thead><tbody><tr><td>{darkRoomTotal}</td><td>{lightRoomTotal}</td><td>{lossTotal}</td></tr></tbody></table></div>
 
       <Panel
         title="Transfer Bags To Light Room"
         subtitle="Select the batch and enter moved, contaminated, and discarded bag counts."
       >
-        <div className="admin-form-grid">
-          <Field label="Batch">
+        <fieldset disabled={busy} className="admin-form-grid money-fieldset">
+          <Field label="Movement date"><input required type="date" max={todayIndia()} value={movementDate} onChange={e=>setMovementDate(e.target.value)}/></Field><Field label="Batch">
             <select
               value={selectedBatchId}
               onChange={(event) => setSelectedBatchId(event.target.value)}
@@ -125,7 +116,7 @@ export default function RoomTransferPage() {
 
           <Field label="Moved To Light Room">
             <input
-              type="number"
+              type="number" min="0"
               value={movedToLightRoom}
               onChange={(event) => setMovedToLightRoom(event.target.value)}
             />
@@ -133,7 +124,7 @@ export default function RoomTransferPage() {
 
           <Field label="Contaminated Bags">
             <input
-              type="number"
+              type="number" min="0"
               value={contaminatedBags}
               onChange={(event) => setContaminatedBags(event.target.value)}
             />
@@ -141,7 +132,7 @@ export default function RoomTransferPage() {
 
           <Field label="Discarded Bags">
             <input
-              type="number"
+              type="number" min="0"
               value={discardedBags}
               onChange={(event) => setDiscardedBags(event.target.value)}
             />
@@ -155,10 +146,10 @@ export default function RoomTransferPage() {
           </Field>
 
           <button className="admin-button" type="button" onClick={transfer}>
-            <Save size={17} />
+            {busy?<MoneySpinner/>:<Save size={17}/>}
             Transfer
           </button>
-        </div>
+        </fieldset>
       </Panel>
 
       <Panel
@@ -173,40 +164,9 @@ export default function RoomTransferPage() {
         )}
 
         {batches.length > 0 && (
-          <div className="admin-record-grid">
-            {batches.map((batch) => (
-              <article className="admin-record-card" key={batch.id}>
-                <header>
-                  <div>
-                    <h3>{batch.batchCode}</h3>
-                    <small>Room movement status</small>
-                  </div>
-                  <StatusPill status={batch.status} />
-                </header>
-
-                <div className="admin-record-details">
-                  <div>
-                    <span>Dark Room</span>
-                    <strong>{batch.darkRoomBags}</strong>
-                  </div>
-                  <div>
-                    <span>Light Room</span>
-                    <strong>{batch.lightRoomBags}</strong>
-                  </div>
-                  <div>
-                    <span>Contaminated</span>
-                    <strong>{batch.contaminatedBags}</strong>
-                  </div>
-                  <div>
-                    <span>Discarded</span>
-                    <strong>{batch.discardedBags}</strong>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
+<div style={{overflowX:"auto"}}><table className="money-table"><thead><tr><th>Batch</th><th>Status</th><th>Dark room</th><th>Light room</th><th>Contaminated</th><th>Discarded</th></tr></thead><tbody>{batches.map(batch=><tr key={batch.id}><td>{batch.batchCode}</td><td>{batch.status}</td><td>{batch.darkRoomBags}</td><td>{batch.lightRoomBags}</td><td>{batch.contaminatedBags}</td><td>{batch.discardedBags}</td></tr>)}</tbody></table></div>
         )}
       </Panel>
-    </AdminLayout>
+    </Wrapper>
   );
 }

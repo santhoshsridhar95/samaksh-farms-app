@@ -1,3 +1,4 @@
+import { landingPage } from "./roleAccess";
 import { AUTH_CONFIG } from "../config/authConfig";
 
 type JwtPayload = {
@@ -47,30 +48,7 @@ export function markSessionStarted() {
   localStorage.setItem("loginAt", String(Date.now()));
 }
 
-export function defaultAdminPageForRoles(roles: string[]) {
-  if (hasAnyRole(roles, [
-    "SUPER_ADMIN",
-    "FARM_MANAGER",
-    "SALES_ADMIN",
-    "SALES_EMPLOYEE",
-    "SALES_USER",
-  ])) {
-    return "/admin/sales";
-  }
-
-  if (hasAnyRole(roles, ["LABOUR"])) {
-    return "/admin/inventory";
-  }
-
-  return AUTH_CONFIG.defaultAdminPage;
-}
-
-function hasAnyRole(
-  roles: string[],
-  allowedRoles: string[],
-) {
-  return roles.some((role) => allowedRoles.includes(role));
-}
+export const defaultAdminPageForRoles = landingPage;
 
 function isJwtExpired(token: string) {
   const payload = decodeJwtPayload(token);

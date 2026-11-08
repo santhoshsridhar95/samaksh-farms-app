@@ -1,3 +1,5 @@
+import { todayIndia } from "./MoneyPage";
+import HistoricalDataLink from "../components/HistoricalDataLink";
 import { useEffect, useState } from "react";
 import { CalendarDays, ClipboardList, Save, ShoppingBag } from "lucide-react";
 
@@ -21,6 +23,7 @@ export default function OrderPage() {
   const [quantity, setQuantity] = useState("");
   const [expectedUnitPrice, setExpectedUnitPrice] = useState("");
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
+  const [orderDate,setOrderDate]=useState(todayIndia);
   const [remarks, setRemarks] = useState("");
 
   useEffect(() => {
@@ -58,6 +61,7 @@ export default function OrderPage() {
   const createOrder = async () => {
     try {
       await api.post("/api/orders", {
+        orderDate,
         customerId: Number(customerId),
         productId: Number(productId),
         quantity: Number(quantity),
@@ -95,7 +99,7 @@ export default function OrderPage() {
     : 0;
 
   return (
-    <AdminLayout>
+    <AdminLayout><HistoricalDataLink module="ORDER"/>
       <PageHeader
         eyebrow="Orders"
         title="Customer Orders"
@@ -128,7 +132,7 @@ export default function OrderPage() {
         subtitle="Log the customer, product, price, quantity, and delivery date."
       >
         <div className="admin-form-grid">
-          <Field label="Customer">
+          <Field label="Order date"><input required type="date" max={todayIndia()} value={orderDate} onChange={e=>setOrderDate(e.target.value)}/></Field><Field label="Customer">
             <select
               value={customerId}
               onChange={(event) => setCustomerId(event.target.value)}

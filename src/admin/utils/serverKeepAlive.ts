@@ -161,7 +161,7 @@ function pingWhenVisible() {
   }
 }
 
-function normalizeSettings(settings: ServerKeepAliveSettings) {
+function normalizeSettings(settings: ServerKeepAliveSettings): ServerKeepAliveSettings {
   return {
     enabled: Boolean(settings.enabled),
     intervalMinutes: Math.max(

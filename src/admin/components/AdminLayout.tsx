@@ -1,8 +1,8 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Bell, Search, UserCircle } from "lucide-react";
 
 import Sidebar from "./Sidebar";
-import api from "../services/api";
+import { getStoredRoles } from "../../routes/authSession";
 
 type Props = {
   children: ReactNode;
@@ -10,28 +10,8 @@ type Props = {
 
 export default function AdminLayout({ children }: Props) {
   const userName = localStorage.getItem("userName") || "User";
-  const role = localStorage.getItem("role") || "User";
-  const [permissions, setPermissions] = useState<string[]>([]);
-
-  useEffect(() => {
-    loadEntitlements();
-  }, []);
-
-  const loadEntitlements = async () => {
-    try {
-      const response = await api.get("/api/entitlements/me");
-      setPermissions(response?.data?.data?.permissions || []);
-    } catch (error) {
-      console.error(error);
-      setPermissions([]);
-    }
-  };
-
-  const entitlementText =
-    permissions.length > 0
-      ? permissions.map(formatPermission).join(", ")
-      : formatRole(role);
-
+  const roles = getStoredRoles();
+  const entitlementText = roles.map(formatRole).join(" · ");
   return (
     <div className="admin-shell">
       <Sidebar />
@@ -40,7 +20,7 @@ export default function AdminLayout({ children }: Props) {
         <header className="admin-topbar">
           <div className="admin-search">
             <Search size={18} />
-            <span>Search farm operations</span>
+            <span>{roles.includes("SUPER_ADMIN") ? "Farm administration" : roles.some(r=>r.startsWith("SALES_")) ? "Sales workspace" : "Farm operations"}</span>
           </div>
 
           <div className="admin-topbar-actions">
@@ -64,16 +44,6 @@ export default function AdminLayout({ children }: Props) {
       </main>
     </div>
   );
-}
-
-function formatPermission(permission: string) {
-  return permission
-    .replace(/\./g, " ")
-    .replace(/_/g, " ")
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part[0]?.toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function formatRole(role: string) {
