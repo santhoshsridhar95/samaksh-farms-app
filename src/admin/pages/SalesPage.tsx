@@ -1,3 +1,10 @@
+import ManualDeliveryRoutes from "../components/ManualDeliveryRoutes";
+import { mapTarget, shopDirections, routeSections } from "../utils/shopNavigation";
+import { salesTabsForRoles } from "../../routes/roleAccess";
+import { MoneySpinner } from "./MoneyPage";
+import { useSearchParams } from "react-router-dom";
+import DirectSalesPage from "./DirectSalesPage";
+import SalesForecast from "../components/SalesForecast";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Download,
@@ -61,6 +68,8 @@ const emptyShopForm = {
   phoneNumber: "",
   email: "",
   address: "",
+  mapLocation: "",
+  shopStage: "EXISTING",
   location: "R.T. Nagar",
   shopCategory: "Vegetable Shop",
   minimumBoxesPerDay: "10",
@@ -90,23 +99,17 @@ const emptySaleForm = {
   remarks: "",
 };
 
-const emptyHandoverForm = {
-  id: "",
-  collectorUserId: "",
-  collectorName: "",
-  collectorEmail: "",
-  ownerName: "",
-  amount: "",
-  remarks: "",
-};
+
 
 type ShopForm = typeof emptyShopForm;
 type SaleForm = typeof emptySaleForm;
 type SaleEditForm = typeof emptySaleForm;
-type HandoverForm = typeof emptyHandoverForm;
+
 type BoxAllocation = {
   shopId: number | string;
   shopName: string;
+  mapLocation?: string;
+  address?: string;
   category: string;
   location: string;
   dailyRequirement: number;
@@ -163,21 +166,17 @@ export default function SalesPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [cashLedger, setCashLedger] = useState<any>({
-    summaries: [],
-    handovers: [],
-  });
   const [allCustomersLoaded, setAllCustomersLoaded] = useState(false);
-  const [cashLedgerLoaded, setCashLedgerLoaded] = useState(false);
   const [usersLoaded, setUsersLoaded] = useState(false);
   const [shopSearch, setShopSearch] = useState("");
   const [shopSearchOpen, setShopSearchOpen] = useState(false);
   const [customProductName, setCustomProductName] = useState("");
-  const [activeTab, setActiveTab] = useState("delivery");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "delivery");
+  useEffect(() => { const tab = searchParams.get("tab"); if (tab) setActiveTab(tab); }, [searchParams]);
   const [selectedHistoryShopId, setSelectedHistoryShopId] = useState("");
   const [deliverySalesShopId, setDeliverySalesShopId] = useState("");
   const [historyPage, setHistoryPage] = useState(0);
-  const [permissions, setPermissions] = useState<string[]>([]);
   const [shopToDelete, setShopToDelete] = useState<any>(null);
   const [paymentSale, setPaymentSale] = useState<any>(null);
   const [paymentReceived, setPaymentReceived] = useState("");
@@ -190,7 +189,13 @@ export default function SalesPage() {
   const [saleEditForm, setSaleEditForm] =
     useState<SaleEditForm>(emptySaleForm);
   const [savingSaleEdit, setSavingSaleEdit] = useState(false);
+  const [savingDelivery, setSavingDelivery] = useState(false);
+  const savingDeliveryRef = useRef(false);
   const [allocationBoxCount, setAllocationBoxCount] = useState("100");
+  const [manualRouting, setManualRouting] = useState(false);
+  const [shopGpsPending, setShopGpsPending] = useState(false);
+  const [savingShop, setSavingShop] = useState(false);
+  const savingShopRef = useRef(false);
   const [routeEmployeeCount, setRouteEmployeeCount] = useState("2");
   const [routeOrigin, setRouteOrigin] = useState("Samaksh Farms, Bengaluru");
   const [routeBalanceBoxes, setRouteBalanceBoxes] = useState(true);
@@ -198,11 +203,8 @@ export default function SalesPage() {
   const [routeReduceBacktracking, setRouteReduceBacktracking] = useState(true);
   const [editingShopId, setEditingShopId] = useState<string | null>(null);
   const [deletingShop, setDeletingShop] = useState(false);
-  const [savingHandover, setSavingHandover] = useState(false);
   const [shopForm, setShopForm] = useState<ShopForm>(emptyShopForm);
   const [saleForm, setSaleForm] = useState<SaleForm>(emptySaleForm);
-  const [handoverForm, setHandoverForm] =
-    useState<HandoverForm>(emptyHandoverForm);
   const [banner, setBanner] = useState<BannerState>(null);
   const [shopFieldErrors, setShopFieldErrors] = useState<ShopFieldErrors>({});
   const [saleFieldErrors, setSaleFieldErrors] = useState<SaleFieldErrors>({});
@@ -219,16 +221,14 @@ export default function SalesPage() {
   const roles = useMemo(() => getStoredRoles(), []);
   const hasRole = (...allowedRoles: string[]) =>
     roles.some((userRole) => allowedRoles.includes(userRole));
-  const hasPermission = (permission: string) =>
-    hasRole("SUPER_ADMIN") || permissions.includes(permission);
   const isSalesAdmin = hasRole("SALES_ADMIN");
   const isSalesEmployee = hasRole("SALES_EMPLOYEE", "SALES_USER");
   const isSuperAdmin = hasRole("SUPER_ADMIN");
   const canManageShops =
-    isSalesAdmin || isSalesEmployee || hasPermission("sales.manage_shops");
-  const canViewLedger = isSalesAdmin || hasPermission("sales.view_ledger");
+    isSuperAdmin || isSalesAdmin;
+  const canViewLedger = isSuperAdmin;
   const canCreateDelivery =
-    isSalesAdmin || isSalesEmployee || hasPermission("sales.create_delivery");
+    isSuperAdmin || isSalesAdmin || isSalesEmployee;
   const canDeleteShops = hasRole("SUPER_ADMIN", "SALES_ADMIN");
 
   useEffect(() => {
@@ -253,27 +253,23 @@ export default function SalesPage() {
         customerResponse,
         productResponse,
         salesResponse,
-        entitlementResponse,
       ] = await Promise.all([
         api.get("/api/customers?size=1000"),
         api.get("/api/products"),
         api.get("/api/sales", {
           params: {
             size: 1000,
-            refresh: Date.now(),
           },
         }),
-        api.get("/api/entitlements/me"),
       ]);
 
-      const activeCustomers = customerResponse?.data?.data?.content || [];
+      const activeCustomers = (customerResponse?.data?.data?.content || []).filter((customer: { customerType?: string }) => customer.customerType !== "DIRECT");
       setCustomers(activeCustomers);
       setAllCustomers((current) =>
         allCustomersLoaded || current.length > 0 ? current : activeCustomers,
       );
       setProducts(productResponse.data.data || []);
       setSales(salesResponse?.data?.data?.content || []);
-      setPermissions(entitlementResponse?.data?.data?.permissions || []);
       setPaymentSale(null);
       setPaymentReceived("");
       setPaymentRemarks("");
@@ -328,34 +324,10 @@ export default function SalesPage() {
     }
   };
 
-  const loadCashLedger = async (force = false) => {
-    if (cashLedgerLoaded && !force) {
-      return;
-    }
-
-    try {
-      const response = await api.get("/api/cash-handovers");
-      setCashLedger(response?.data?.data || {
-        summaries: [],
-        handovers: [],
-      });
-      setCashLedgerLoaded(true);
-    } catch (error: any) {
-      console.error(error);
-      showBanner({
-        tone: "error",
-        message:
-          error?.response?.data?.message ||
-          "Failed to load collections data.",
-      });
-    }
-  };
-
   const refreshSalesData = async () => {
     await Promise.all([
       loadBaseData(),
       allCustomersLoaded ? loadAllCustomers(true) : Promise.resolve(),
-      cashLedgerLoaded ? loadCashLedger(true) : Promise.resolve(),
       usersLoaded ? loadUsers(true) : Promise.resolve(),
     ]);
   };
@@ -571,18 +543,7 @@ export default function SalesPage() {
     ],
   );
 
-  const tabs = useMemo(
-    () =>
-      [
-        canCreateDelivery && { id: "delivery", label: "Delivery Entry" },
-        canCreateDelivery && { id: "allocation", label: "Box Allocation" },
-        canManageShops && { id: "shops", label: "Shop Setup" },
-        canViewLedger && { id: "collections", label: "Collections" },
-        canViewLedger && { id: "ledger", label: "Sales Ledger" },
-        canViewLedger && { id: "history", label: "Shop History" },
-      ].filter(Boolean) as { id: string; label: string }[],
-    [canCreateDelivery, canManageShops, canViewLedger],
-  );
+  const tabs = useMemo(() => salesTabsForRoles(roles), [roles]);
 
   useEffect(() => {
     if (tabs.length > 0 && !tabs.some((tab) => tab.id === activeTab)) {
@@ -591,9 +552,6 @@ export default function SalesPage() {
   }, [activeTab, tabs]);
 
   useEffect(() => {
-    if (activeTab === "collections") {
-      loadCashLedger();
-    }
 
     if (activeTab === "history" || activeTab === "ledger") {
       loadAllCustomers();
@@ -794,15 +752,19 @@ export default function SalesPage() {
       errors.customerId = "Shop is required";
     }
 
-    if (!form.productId && !form.productName.trim()) {
+    const collectionOnly = form.quantity.trim() !== "" && Number(form.quantity) === 0;
+    if (!collectionOnly && !form.productId && !form.productName.trim()) {
       errors.productId =
         productOptions.length === 0
           ? "Choose a shop product or enter the product manually"
           : "Product is required";
     }
 
-    if ((Number(form.quantity) || 0) <= 0) {
-      errors.quantity = "Boxes must be greater than 0";
+    if (!form.quantity.trim() || !Number.isFinite(Number(form.quantity)) || Number(form.quantity) < 0) {
+      errors.quantity = "Enter 0 for collection only, or a positive box quantity";
+    }
+    if (collectionOnly && Number(form.amountCollected || 0) <= 0) {
+      errors.amountCollected = "Enter the amount received for this balance collection";
     }
 
     if ((Number(form.unitPrice) || 0) < 0) {
@@ -842,6 +804,8 @@ export default function SalesPage() {
       phoneNumber: customer.phoneNumber || "",
       email: customer.email || "",
       address: customer.address || "",
+      mapLocation: customer.mapLocation || "",
+      shopStage: customer.shopStage || "EXISTING",
       location: customer.location || "R.T. Nagar",
       shopCategory: customer.shopCategory || "Vegetable Shop",
       minimumBoxesPerDay: String(customer.minimumBoxesPerDay ?? "10"),
@@ -867,7 +831,10 @@ export default function SalesPage() {
   };
 
   const saveShop = async () => {
+    if (savingShopRef.current) return;
+    savingShopRef.current = true; setSavingShop(true);
     try {
+      mapTarget(shopForm.mapLocation);
       const validationErrors = validateShopForm();
 
       if (Object.keys(validationErrors).length > 0) {
@@ -885,6 +852,8 @@ export default function SalesPage() {
         phoneNumber: optionalText(shopForm.phoneNumber),
         email: optionalText(shopForm.email),
         address: optionalText(shopForm.address),
+        mapLocation: optionalText(shopForm.mapLocation),
+        shopStage: shopForm.shopStage,
         location: optionalText(shopForm.location),
         shopCategory: shopForm.shopCategory.trim(),
         minimumBoxesPerDay: Number(shopForm.minimumBoxesPerDay) || 0,
@@ -930,9 +899,9 @@ export default function SalesPage() {
 
       showBanner({
         tone: "error",
-        message: apiValidationMessage(error, "Failed to save shop."),
+        message: apiValidationMessage(error, error?.message || "Failed to save shop."),
       });
-    }
+    } finally { savingShopRef.current = false; setSavingShop(false); }
   };
 
   const deleteShop = async () => {
@@ -1069,6 +1038,8 @@ export default function SalesPage() {
   };
 
   const createSale = async () => {
+    if (savingDeliveryRef.current) return;
+    savingDeliveryRef.current = true; setSavingDelivery(true);
     try {
       const savedShopId = saleForm.customerId;
       const validationErrors = validateSaleForm(
@@ -1111,15 +1082,15 @@ export default function SalesPage() {
           : {}),
         shopkeeperSellingPrice:
           Number(saleForm.shopkeeperSellingPrice) || undefined,
-        exchangeType: saleForm.exchangeType,
-        exchangeBoxes: Number(saleForm.exchangeBoxes) || 0,
-        returnedBoxes: Number((saleForm as any).returnedBoxes) || 0,
+        exchangeType: Number(saleForm.quantity) === 0 ? "NONE" : saleForm.exchangeType,
+        exchangeBoxes: Number(saleForm.quantity) === 0 ? 0 : Number(saleForm.exchangeBoxes) || 0,
+        returnedBoxes: Number(saleForm.quantity) === 0 ? 0 : Number((saleForm as any).returnedBoxes) || 0,
         remarks: saleForm.remarks,
       });
 
       showBanner({
         tone: "success",
-        message: deliverySuccessMessage(),
+        message: Number(saleForm.quantity) === 0 ? "Balance collection saved. The shop outstanding and collector’s money balance are updated; no new boxes were billed." : deliverySuccessMessage(),
       });
       setDeliverySalesShopId(savedShopId);
       setSaleForm(emptySaleForm);
@@ -1138,7 +1109,7 @@ export default function SalesPage() {
           error?.response?.data?.message ||
           "Failed to save delivery sale.",
       });
-    }
+    } finally { savingDeliveryRef.current = false; setSavingDelivery(false); }
   };
 
   const downloadSalesCsv = () => {
@@ -1155,7 +1126,7 @@ export default function SalesPage() {
   };
 
   const copyRoutePlan = async (routePlan: RoutePlan) => {
-    const text = routeShareText(routePlan);
+    const text = routeShareText(routePlan, routeOrigin);
 
     try {
       await navigator.clipboard.writeText(text);
@@ -1416,118 +1387,12 @@ export default function SalesPage() {
     }
   };
 
-  const startCashHandover = (summary: any) => {
-    setHandoverForm({
-      ...emptyHandoverForm,
-      collectorUserId: summary.collectorUserId
-        ? String(summary.collectorUserId)
-        : "",
-      collectorName: summary.collectorName || "",
-      collectorEmail: summary.collectorEmail || "",
-      amount:
-        Number(summary.balanceWithUser) > 0
-          ? String(summary.balanceWithUser)
-          : "",
-    });
-  };
-
-  const editCashHandover = (handover: any) => {
-    setHandoverForm({
-      id: String(handover.id || ""),
-      collectorUserId: handover.collectorUserId
-        ? String(handover.collectorUserId)
-        : "",
-      collectorName: handover.collectorName || "",
-      collectorEmail: handover.collectorEmail || "",
-      ownerName: handover.ownerName || "",
-      amount: String(handover.amount ?? ""),
-      remarks: handover.remarks || "",
-    });
-  };
-
-  const updateHandoverCollector = (userId: string) => {
-    const selectedUser = collectorUsers.find(
-      (user) => String(user.id) === String(userId),
-    );
-
-    setHandoverForm((current) => ({
-      ...current,
-      collectorUserId: userId,
-      collectorName: selectedUser?.name || "",
-      collectorEmail: selectedUser?.email || "",
-    }));
-  };
-
-  const saveCashHandover = async () => {
-    if (savingHandover) {
-      return;
-    }
-
-    if (!handoverForm.collectorName.trim()) {
-      showBanner({ tone: "error", message: "Collector name is required." });
-      return;
-    }
-
-    if (!handoverForm.ownerName.trim()) {
-      showBanner({ tone: "error", message: "Owner name is required." });
-      return;
-    }
-
-    if ((Number(handoverForm.amount) || 0) <= 0) {
-      showBanner({
-        tone: "error",
-        message: "Handover amount must be greater than 0.",
-      });
-      return;
-    }
-
-    const payload = {
-      collectorUserId: handoverForm.collectorUserId
-        ? Number(handoverForm.collectorUserId)
-        : null,
-      collectorName: handoverForm.collectorName.trim(),
-      collectorEmail: optionalText(handoverForm.collectorEmail),
-      ownerName: handoverForm.ownerName.trim(),
-      amount: Number(handoverForm.amount),
-      remarks: optionalText(handoverForm.remarks),
-    };
-
-    try {
-      setSavingHandover(true);
-
-      if (handoverForm.id) {
-        await api.put(`/api/cash-handovers/${handoverForm.id}`, payload);
-      } else {
-        await api.post("/api/cash-handovers", payload);
-      }
-
-      showBanner({
-        tone: "success",
-        message: handoverForm.id
-          ? "Cash handover updated successfully."
-          : "Cash handover recorded successfully.",
-      });
-      setHandoverForm(emptyHandoverForm);
-      await refreshSalesData();
-    } catch (error: any) {
-      console.error(error);
-      showBanner({
-        tone: "error",
-        message:
-          error?.response?.data?.message ||
-          "Failed to save cash handover.",
-      });
-    } finally {
-      setSavingHandover(false);
-    }
-  };
-
   return (
     <AdminLayout>
       <PageHeader
         eyebrow="Sales"
-        title="Shop Sales"
-        subtitle="Use this workspace for delivery entry, shop setup, ledger checks, and shop-wise history."
+        title="Sales"
+        subtitle="Manage shop deliveries, direct customer sales, collections and purchase history."
         actions={canViewLedger ? (
           <button
             className="admin-button"
@@ -1561,12 +1426,17 @@ export default function SalesPage() {
             key={tab.id}
             className={`admin-tab ${activeTab === tab.id ? "is-active" : ""}`}
             type="button"
-            onClick={() => setActiveTab(tab.id)}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => { setActiveTab(tab.id); setSearchParams({ tab: tab.id }, { replace: true }); }}
           >
             {tab.label}
           </button>
         ))}
       </div>
+
+      {activeTab === "direct" && <DirectSalesPage />}
+      {canCreateDelivery && activeTab === "planning" && <SalesForecast revision={sales} />}
 
       {canManageShops && activeTab === "shops" && (
         <div ref={shopFormRef}>
@@ -1790,6 +1660,19 @@ export default function SalesPage() {
               />
             </Field>
 
+            <Field label="Shop status"><select value={shopForm.shopStage} onChange={e => updateShopField("shopStage", e.target.value)}><option value="EXISTING">Existing shop</option><option value="PROSPECTIVE">Prospective shop</option><option value="RETURN_PROSPECTIVE">Return prospective shop</option></select></Field>
+            <Field label="Map location / latitude, longitude" optional>
+              <input maxLength={2048} value={shopForm.mapLocation} onChange={e => updateShopField("mapLocation", e.target.value)} placeholder="Address, Google Maps link, or 12.9716,77.5946" />
+              <small>Long-press the shop in Google Maps. Paste its coordinates or share link here. Short links open separately in the route sequence.</small>
+              <div className="route-origin-actions">
+                <a className="admin-button admin-button-secondary" href={"https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([shopForm.customerName, shopForm.address, shopForm.location].filter(Boolean).join(", "))} target="_blank" rel="noreferrer">Find / mark on Google Maps</a>
+                <button type="button" className="admin-button admin-button-secondary" disabled={shopGpsPending} onClick={() => {
+                  if (!navigator.geolocation) { showBanner({tone: "error", message: "GPS unavailable. Enter coordinates or a Maps link."}); return; }
+                  setShopGpsPending(true);
+                  navigator.geolocation.getCurrentPosition(position => { updateShopField("mapLocation", position.coords.latitude.toFixed(6) + "," + position.coords.longitude.toFixed(6)); setShopGpsPending(false); }, () => {setShopGpsPending(false); showBanner({tone: "error", message: "Allow location access or enter the shop location manually."});}, {enableHighAccuracy: true, timeout: 15000, maximumAge: 0});
+                }}>{shopGpsPending ? "Reading GPS…" : "Use current shop location"}</button>
+              </div>
+            </Field>
             <Field label="Address" optional>
               <input
                 value={shopForm.address}
@@ -1799,7 +1682,7 @@ export default function SalesPage() {
               />
             </Field>
 
-            <button className="admin-button" type="button" onClick={saveShop}>
+            <button className="admin-button" type="button" onClick={saveShop} disabled={savingShop || shopGpsPending}>
               <Save size={17} />
               {shopForm.id ? "Update Shop" : "Create Shop"}
             </button>
@@ -1872,6 +1755,7 @@ export default function SalesPage() {
               <span className="sales-shop-chip sales-shop-chip-name">
                 <Store size={16} />
                 {selectedShop.customerName || "Selected shop"}
+                <a href={shopDirections(selectedShop)} target="_blank" rel="noreferrer">Navigate to shop</a>
               </span>
               <span className="sales-shop-chip">
                 <Store size={16} />
@@ -1915,11 +1799,12 @@ export default function SalesPage() {
           </div>
         )}
 
+        {saleForm.customerId && <SalesForecast revision={sales} customerId={String(saleForm.customerId)} product={saleForm.productName} date={saleForm.deliveryDate || undefined} />}
         <div
           className="admin-form-grid delivery-entry-form"
           ref={deliveryEntryFormRef}
         >
-          <Field label="Product" required error={saleFieldErrors.productId}>
+          <Field label="Product" required={Number(saleForm.quantity) !== 0} error={saleFieldErrors.productId}>
             <input
               list="delivery-products"
               value={saleForm.productName}
@@ -1943,9 +1828,12 @@ export default function SalesPage() {
           <Field label="Boxes" required error={saleFieldErrors.quantity}>
             <input
               type="number"
+              min="0"
+              step="1"
               value={saleForm.quantity}
               onChange={(event) => updateSaleField("quantity", event.target.value)}
             />
+            <small>Use 0 when only collecting an existing shop balance.</small>
           </Field>
 
           <Field label="Unit Price" required error={saleFieldErrors.unitPrice}>
@@ -2062,9 +1950,10 @@ export default function SalesPage() {
             />
           </Field>
 
-          <button className="admin-button" type="button" onClick={createSale}>
+          <button className="admin-button" type="button" onClick={createSale} disabled={savingDelivery} aria-busy={savingDelivery}>
+            {savingDelivery && <MoneySpinner />}
             <Save size={17} />
-            Save Delivery Sale
+            {savingDelivery ? "Saving…" : Number(saleForm.quantity) === 0 ? "Save balance collection" : "Save Delivery Sale"}
           </button>
         </div>
 
@@ -2159,7 +2048,7 @@ export default function SalesPage() {
       </Panel>
       )}
 
-      {canCreateDelivery && activeTab === "allocation" && (
+      {canManageShops && activeTab === "allocation" && (
         <>
           <Panel
             title="Box Allocation"
@@ -2225,9 +2114,10 @@ export default function SalesPage() {
             title="Route Planner"
             subtitle="Free route split using shop locations and box load. Opens final routes in Google Maps without any paid API."
           >
+            <label className="route-option-card"><input type="checkbox" checked={manualRouting} onChange={e => setManualRouting(e.target.checked)} /><span><strong>Manual routing</strong><small>Unchecked: existing automatic split. Checked: choose shops / areas and stop order.</small></span></label>
             <div className="route-planner-control">
               <div className="route-planner-topline">
-                <Field label="Delivery Employees">
+                {!manualRouting && <Field label="Delivery Employees">
                   <input
                     type="number"
                     min="1"
@@ -2239,7 +2129,7 @@ export default function SalesPage() {
                       )
                     }
                   />
-                </Field>
+                </Field>}
 
                 <div className="route-origin-control">
                   <Field label="Start From" required>
@@ -2286,7 +2176,7 @@ export default function SalesPage() {
                 </div>
               </div>
 
-              <div className="route-option-grid" aria-label="Route split options">
+              <div className="route-option-grid" aria-label="Route split options" style={manualRouting ? {display: "none"} : undefined}>
                 <label className="route-option-card">
                   <input
                     type="checkbox"
@@ -2329,6 +2219,8 @@ export default function SalesPage() {
               </div>
             </div>
 
+            {manualRouting && <ManualDeliveryRoutes origin={routeOrigin} shops={customers.filter(c => c.active !== false).map(c => boxAllocation.find(b => String(b.shopId) === String(c.id)) || ({shopId: c.id, shopName: c.customerName, location: c.location || "", mapLocation: c.mapLocation, address: c.address, allocatedBoxes: 0}))} />}
+            {!manualRouting && <>
             <div className="admin-stat-grid">
               <StatCard
                 label="Routes"
@@ -2389,6 +2281,8 @@ export default function SalesPage() {
                       </div>
                     </div>
 
+                    <a className="admin-button admin-button-secondary" href={"https://wa.me/?text=" + encodeURIComponent(routeShareText(routePlan, routeOrigin))} target="_blank" rel="noreferrer">Share via WhatsApp</a>
+                    <div className="route-origin-actions">{routeSections(routeOrigin, routePlan.shops).map((url, i) => <a key={i} href={url} target="_blank" rel="noreferrer">Directions section {i + 1}</a>)}</div>
                     <div className="sales-route-meta">
                       {routePlan.locations.map((location) => (
                         <span key={location}>{location}</span>
@@ -2399,6 +2293,7 @@ export default function SalesPage() {
                       {routePlan.shops.map((shop) => (
                         <li key={shop.shopId}>
                           <strong>{shop.shopName}</strong>
+                          <a href={shopDirections(shop)} target="_blank" rel="noreferrer">Navigate to shop</a>
                           <span>
                             {shop.location} - {shop.allocatedBoxes} boxes
                           </span>
@@ -2409,6 +2304,7 @@ export default function SalesPage() {
                 ))}
               </div>
             )}
+            </>}
           </Panel>
 
           <Panel
@@ -2539,233 +2435,9 @@ export default function SalesPage() {
       )}
 
       {canViewLedger && activeTab === "collections" && (
-        <Panel
-          title="Collections"
-          subtitle="Track cash collected by each user and record how much was handed over to each owner."
-        >
-          <div className="admin-stat-grid">
-            <StatCard
-              label="Today Collected"
-              value={`Rs. ${sumBy(cashLedger.summaries, "todayCollected")}`}
-              icon={<IndianRupee size={20} />}
-              tone="green"
-            />
-            <StatCard
-              label="Total Collected"
-              value={`Rs. ${sumBy(cashLedger.summaries, "totalCollected")}`}
-              icon={<Receipt size={20} />}
-              tone="blue"
-            />
-            <StatCard
-              label="Handed Over"
-              value={`Rs. ${sumBy(cashLedger.summaries, "totalHandedOver")}`}
-              icon={<WalletCards size={20} />}
-              tone="violet"
-            />
-            <StatCard
-              label="With Users"
-              value={`Rs. ${sumBy(cashLedger.summaries, "balanceWithUser")}`}
-              icon={<Store size={20} />}
-              tone="amber"
-            />
-          </div>
-
-          <div className="sales-table-wrap">
-            <table className="admin-data-table">
-              <thead>
-                <tr>
-                  <th>User</th>
-                  <th>Today</th>
-                  <th>Total Collected</th>
-                  <th>Handed Over</th>
-                  <th>Balance With User</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(cashLedger.summaries || []).map((summary: any) => (
-                  <tr key={`${summary.collectorUserId || summary.collectorEmail || summary.collectorName}`}>
-                    <td>
-                      <strong>{summary.collectorName || "Unknown user"}</strong>
-                      <span>{summary.collectorEmail || "-"}</span>
-                    </td>
-                    <td>Rs. {summary.todayCollected ?? 0}</td>
-                    <td>Rs. {summary.totalCollected ?? 0}</td>
-                    <td>Rs. {summary.totalHandedOver ?? 0}</td>
-                    <td>Rs. {summary.balanceWithUser ?? 0}</td>
-                    <td>
-                      <button
-                        className="admin-action-button"
-                        type="button"
-                        onClick={() => startCashHandover(summary)}
-                      >
-                        <WalletCards size={15} />
-                        Handover
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {(cashLedger.summaries || []).length === 0 && (
-                  <tr>
-                    <td colSpan={6}>No collections recorded yet.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="admin-form-grid">
-            <Field label="Collector" required>
-              {isSuperAdmin ? (
-                <select
-                  value={handoverForm.collectorUserId}
-                  onFocus={() => loadUsers()}
-                  onChange={(event) => updateHandoverCollector(event.target.value)}
-                >
-                  <option value="">Select collector</option>
-                  {collectorUsers.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.name} - {user.email}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  value={handoverForm.collectorName}
-                  onChange={(event) =>
-                    setHandoverForm((current) => ({
-                      ...current,
-                      collectorName: event.target.value,
-                    }))
-                  }
-                />
-              )}
-            </Field>
-            <Field label="Collector Email" optional>
-              <input
-                value={handoverForm.collectorEmail}
-                onChange={(event) =>
-                  setHandoverForm((current) => ({
-                    ...current,
-                    collectorEmail: event.target.value,
-                  }))
-                }
-                readOnly={isSuperAdmin && Boolean(handoverForm.collectorUserId)}
-              />
-            </Field>
-            <Field label="Given To Owner" required>
-              <input
-                list="owner-options"
-                value={handoverForm.ownerName}
-                onChange={(event) =>
-                  setHandoverForm((current) => ({
-                    ...current,
-                    ownerName: event.target.value,
-                  }))
-                }
-              />
-              <datalist id="owner-options">
-                {ownerOptions.map((ownerName) => (
-                  <option key={ownerName} value={ownerName} />
-                ))}
-              </datalist>
-            </Field>
-            <Field label="Amount" required>
-              <input
-                type="number"
-                min="0"
-                value={handoverForm.amount}
-                onChange={(event) =>
-                  setHandoverForm((current) => ({
-                    ...current,
-                    amount: event.target.value,
-                  }))
-                }
-              />
-            </Field>
-            <Field label="Note" optional>
-              <input
-                value={handoverForm.remarks}
-                onChange={(event) =>
-                  setHandoverForm((current) => ({
-                    ...current,
-                    remarks: event.target.value,
-                  }))
-                }
-              />
-            </Field>
-            <button
-              className="admin-button"
-              type="button"
-              onClick={saveCashHandover}
-              disabled={savingHandover}
-            >
-              <Save size={17} />
-              {savingHandover
-                ? "Saving..."
-                : handoverForm.id
-                  ? "Update Handover"
-                  : "Save Handover"}
-            </button>
-            {handoverForm.id && (
-              <button
-                className="admin-button admin-button-secondary"
-                type="button"
-                onClick={() => setHandoverForm(emptyHandoverForm)}
-              >
-                Cancel Edit
-              </button>
-            )}
-          </div>
-
-          <div className="sales-table-wrap">
-            <table className="admin-data-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Collector</th>
-                  <th>Owner</th>
-                  <th>Amount</th>
-                  <th>Recorded By</th>
-                  <th>Note</th>
-                  <th>Edit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(cashLedger.handovers || []).map((handover: any) => (
-                  <tr key={handover.id}>
-                    <td>{formatDateTime(handover.handedOverAt)}</td>
-                    <td>
-                      <strong>{handover.collectorName}</strong>
-                      <span>{handover.collectorEmail || "-"}</span>
-                    </td>
-                    <td>{handover.ownerName}</td>
-                    <td>Rs. {handover.amount ?? 0}</td>
-                    <td>
-                      <strong>{auditName(handover.recordedByName)}</strong>
-                      <span>{handover.recordedByEmail || "-"}</span>
-                    </td>
-                    <td>{handover.remarks || "-"}</td>
-                    <td>
-                      <button
-                        className="admin-action-button"
-                        type="button"
-                        onClick={() => editCashHandover(handover)}
-                      >
-                        <Pencil size={15} />
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {(cashLedger.handovers || []).length === 0 && (
-                  <tr>
-                    <td colSpan={7}>No handovers recorded yet.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        <Panel title="Collections, transfers & expenses" subtitle="Farm balances now include money received by each holder, expenses and salary payments.">
+          {roles.some(role => ["SUPER_ADMIN", "FARM_MANAGER", "SALES_ADMIN"].includes(role)) && <a className="admin-button" href="/admin/money">Open Money & Expenses</a>}
+          <p>Managers can record transfers and expenses here. Sales collections continue to update the collecting person’s balance automatically.</p>
         </Panel>
       )}
 
@@ -3378,7 +3050,7 @@ export default function SalesPage() {
 }
 
 function latestSaleForShop(sales: any[], customerId: number) {
-  return sales.find((sale) => Number(sale.customerId) === customerId);
+  return sales.find((sale) => Number(sale.customerId) === customerId && sale.salesChannel !== "COLLECTION");
 }
 
 function buildDeliveryProductOptions(shop: any, products: any[]) {
@@ -3507,9 +3179,12 @@ function calculateExchangeCredit(
 
 function buildBoxAllocation(shops: any[], totalBoxes: number): BoxAllocation[] {
   const plannedShops = shops
+    .filter((shop) => shop.active !== false && (!shop.shopStage || shop.shopStage === "EXISTING"))
     .map((shop) => ({
       shopId: shop.id,
       shopName: shop.customerName || "Shop",
+      mapLocation: shop.mapLocation,
+      address: shop.address,
       category: shop.shopCategory || "Shop",
       location: shop.location || "R.T. Nagar",
       dailyRequirement: Math.max(
@@ -3596,6 +3271,8 @@ function buildBoxAllocation(shops: any[], totalBoxes: number): BoxAllocation[] {
     shopId: shop.shopId,
     shopName: shop.shopName,
     category: shop.category,
+    mapLocation: shop.mapLocation,
+    address: shop.address,
     location: shop.location,
     dailyRequirement: shop.dailyRequirement,
     allocatedBoxes: shop.allocatedBoxes,
@@ -3745,38 +3422,12 @@ function routeWeight(routePlan: RoutePlan, balanceBoxes: boolean) {
 }
 
 function googleMapsRouteUrl(origin: string, shops: BoxAllocation[]) {
-  const stops = shops.map(routeStopLabel);
-  const routeOrigin = mapsLocationValue(origin) || "Samaksh Farms, Bengaluru";
-  const destination = stops[stops.length - 1] || routeOrigin;
-  const waypoints = stops.slice(0, -1).join("|");
-  const params = new URLSearchParams({
-    api: "1",
-    origin: routeOrigin,
-    destination,
-    travelmode: "driving",
-    dir_action: "navigate",
-  });
-
-  if (waypoints) {
-    params.set("waypoints", waypoints);
-  }
-
-  return `https://www.google.com/maps/dir/?${params.toString()}`;
+  return routeSections(origin, shops)[0] || "https://www.google.com/maps";
 }
-
-function routeStopLabel(shop: BoxAllocation) {
-  return `${shop.shopName}, ${shop.location || "Bengaluru"}, Bengaluru`;
-}
-
-function routeShareText(routePlan: RoutePlan) {
-  const stops = routePlan.shops
-    .map(
-      (shop, index) =>
-        `${index + 1}. ${shop.shopName} - ${shop.location} - ${shop.allocatedBoxes} boxes`,
-    )
-    .join("\n");
-
-  return `${routePlan.label}\n${routePlan.totalStops} stops | ${routePlan.totalBoxes} boxes\n\n${stops}\n\nMap: ${routePlan.mapsUrl}`;
+function routeShareText(routePlan: RoutePlan, origin: string) {
+  const stops = routePlan.shops.map((shop, index) => (index + 1) + ". " + shop.shopName + " - " + shop.allocatedBoxes + " boxes\n" + shopDirections(shop)).join("\n\n");
+  const sections = routeSections(origin, routePlan.shops).map((url, i) => "Section " + (i + 1) + ": " + url).join("\n");
+  return routePlan.label + "\nFollow stops in numbered order.\n\n" + stops + "\n\n" + sections;
 }
 
 function normalizedRouteLocation(value?: string) {

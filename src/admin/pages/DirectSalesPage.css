@@ -1,0 +1,9 @@
+.direct-sale-spinner { width: 16px; height: 16px; display: inline-block; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: direct-sale-spin .75s linear infinite; }
+@keyframes direct-sale-spin { to { transform: rotate(360deg); } }
+.direct-sale-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.direct-sale-matches { border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px; display: grid; gap: 8px; max-height: 280px; overflow: auto; }
+.direct-sale-match { text-align: left; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; cursor: pointer; }
+.direct-sale-match:focus-visible { outline: 2px solid #15803d; }
+.direct-sale-match span { display: block; color: #475569; margin-top: 4px; }
+.direct-sale-customer { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px; }
+.direct-sale-customer p { margin: 6px 0; }

@@ -1,13 +1,23 @@
-import { useEffect, useState } from "react";
-import { Scale, Save, Sprout } from "lucide-react";
+import { getStoredRoles } from "../../routes/authSession";
+import { MoneySpinner, errorMessage, todayIndia } from "./MoneyPage";
+import "./MoneyPage.css";
+import { Fragment } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Save } from "lucide-react";
 
 import AdminLayout from "../components/AdminLayout";
-import { EmptyState, Field, PageHeader, Panel, StatCard } from "../components/AdminUI";
+import { EmptyState, Field, PageHeader, Panel } from "../components/AdminUI";
 import api from "../services/api";
 
-export default function HarvestPage() {
+export default function HarvestPage({embedded=false}:{embedded?:boolean}) {
+  const Wrapper=embedded?Fragment:AdminLayout;
+  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[message,setMessage]=useState("");
+  const saving=useRef(false);
   const [batches, setBatches] = useState<any[]>([]);
   const [harvests, setHarvests] = useState<any[]>([]);
+  const [harvestDate,setHarvestDate]=useState(todayIndia);
+  const [editing,setEditing]=useState<number|null>(null);
+  const admin=getStoredRoles().includes("SUPER_ADMIN");
   const [batchId, setBatchId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [remarks, setRemarks] = useState("");
@@ -24,32 +34,34 @@ export default function HarvestPage() {
       setBatches(batchResponse.data.data);
       setHarvests(harvestResponse.data.data);
     } catch (error) {
-      console.error(error);
+      setError(errorMessage(error));
     }
   };
 
   const saveHarvest = async () => {
+    if(saving.current)return;
+    if(!harvestDate || !Number.isFinite(Number(quantity)) || Number(quantity)<=0){setError("Enter a harvest date and a quantity greater than zero.");return;}
     try {
-      await api.post(
-        "/api/harvest",
-        {
-          batchId: Number(batchId),
+      saving.current=true;setBusy(true);setError("");setMessage("");
+      await api.request({method:editing?"put":"post",url:editing?`/api/harvest/${editing}`:"/api/harvest",data:{
+          batchId: batchId ? Number(batchId) : null,
+          harvestDate,
           quantity: Number(quantity),
           remarks
-        }
+        }}
       );
 
-      alert("Harvest saved successfully");
+      setMessage("Harvest saved successfully.");
 
+      setEditing(null);setHarvestDate(todayIndia());
       setBatchId("");
       setQuantity("");
       setRemarks("");
 
-      loadData();
+      await loadData();
     } catch (error: any) {
-      console.error(error);
-      alert(error?.response?.data?.message || "Failed to save harvest");
-    }
+      setError(errorMessage(error));
+    } finally { saving.current=false;setBusy(false); }
   };
 
   const totalHarvest = harvests.reduce(
@@ -58,39 +70,28 @@ export default function HarvestPage() {
   );
 
   return (
-    <AdminLayout>
+    <Wrapper>
+      {error&&<p className="money-error" role="alert">{error}</p>}{message&&<p className="money-success" role="status">{message}</p>}
       <PageHeader
         eyebrow="Harvest"
         title="Harvest Management"
-        subtitle="Record harvest quantities against production batches with clear traceability."
+        subtitle="Record daily harvest totals, with or without a production batch."
       />
 
-      <div className="admin-stat-grid">
-        <StatCard
-          label="Harvest Records"
-          value={harvests.length}
-          icon={<Sprout size={20} />}
-          tone="blue"
-        />
-        <StatCard
-          label="Total Harvest KG"
-          value={totalHarvest}
-          icon={<Scale size={20} />}
-          tone="green"
-        />
-      </div>
+<div style={{overflowX:"auto",marginBottom:20}}><table className="money-table"><thead><tr><th>Harvest records</th><th>Total harvested kg</th></tr></thead><tbody><tr><td>{harvests.length}</td><td>{totalHarvest}</td></tr></tbody></table></div>
 
       <Panel
-        title="Record Harvest"
-        subtitle="Choose the production batch and capture the harvested quantity."
+        title={editing ? "Edit Harvest" : "Record Harvest"}
+        subtitle="Choose the harvest date and quantity. Batch is optional for combined or untracked harvests."
       >
-        <div className="admin-form-grid">
-          <Field label="Batch">
+        <fieldset disabled={busy} className="admin-form-grid money-fieldset">
+          <Field label="Harvest date"><input required type="date" max={todayIndia()} value={harvestDate} onChange={e=>setHarvestDate(e.target.value)}/></Field>
+          <Field label="Batch (optional)">
             <select
               value={batchId}
               onChange={(event) => setBatchId(event.target.value)}
             >
-              <option value="">Select Batch</option>
+              <option value="">No batch / combined harvest</option>
               {batches.map((batch) => (
                 <option key={batch.id} value={batch.id}>
                   {batch.batchCode}
@@ -101,7 +102,7 @@ export default function HarvestPage() {
 
           <Field label="Quantity KG">
             <input
-              type="number"
+              type="number" min="0.001" step="0.001"
               value={quantity}
               onChange={(event) => setQuantity(event.target.value)}
             />
@@ -115,15 +116,16 @@ export default function HarvestPage() {
           </Field>
 
           <button className="admin-button" type="button" onClick={saveHarvest}>
-            <Save size={17} />
-            Save Harvest
+            {busy?<MoneySpinner/>:<Save size={17}/>}
+            {busy?"Saving…":editing?"Update Harvest":"Save Harvest"}
           </button>
-        </div>
+          {editing&&<button type="button" className="admin-button admin-button-secondary" onClick={()=>{setEditing(null);setBatchId("");setQuantity("");setRemarks("");setHarvestDate(todayIndia());setError("");}}>Cancel edit</button>}
+        </fieldset>
       </Panel>
 
       <Panel
         title="Harvest Records"
-        subtitle="Batch-level output captured as concise records."
+        subtitle="Harvest history by date, including combined harvests without a batch."
       >
         {harvests.length === 0 && (
           <EmptyState
@@ -133,31 +135,9 @@ export default function HarvestPage() {
         )}
 
         {harvests.length > 0 && (
-          <div className="admin-record-grid">
-            {harvests.map((harvest) => (
-              <article className="admin-record-card" key={harvest.id}>
-                <header>
-                  <div>
-                    <h3>{harvest.batchCode}</h3>
-                    <small>Harvest #{harvest.id}</small>
-                  </div>
-                </header>
-
-                <div className="admin-record-details">
-                  <div>
-                    <span>Quantity KG</span>
-                    <strong>{harvest.quantity}</strong>
-                  </div>
-                  <div>
-                    <span>Remarks</span>
-                    <strong>{harvest.remarks || "No remarks"}</strong>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
+<div style={{overflowX:"auto"}}><table className="money-table"><thead><tr><th>Date</th><th>Batch</th><th>Quantity (kg)</th><th>Remarks</th><th>Action</th></tr></thead><tbody>{[...harvests].sort((a,b)=>(b.harvestDate||"").localeCompare(a.harvestDate||"")||b.id-a.id).map(harvest=><tr key={harvest.id}><td>{harvest.harvestDate||"—"}</td><td>{harvest.batchCode||"No batch / combined"}</td><td>{harvest.quantity}</td><td style={{whiteSpace:"normal"}}>{harvest.remarks||"—"}</td><td>{admin&&<button type="button" disabled={busy} className="admin-button admin-button-secondary" onClick={()=>{setEditing(harvest.id);setBatchId(harvest.batchId?String(harvest.batchId):"");setHarvestDate(harvest.harvestDate||todayIndia());setQuantity(String(harvest.quantity));setRemarks(harvest.remarks||"");setError("");setMessage("");}}>Edit</button>}</td></tr>)}</tbody></table></div>
         )}
       </Panel>
-    </AdminLayout>
+    </Wrapper>
   );
 }

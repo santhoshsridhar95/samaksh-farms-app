@@ -1,3 +1,4 @@
+import { createReadCache } from "./readCache";
 import axios from "axios";
 import { API_BASE_URL } from "../../config/api";
 import { AUTH_CONFIG } from "../../config/authConfig";
@@ -6,6 +7,19 @@ import { clearSession, getActiveSession } from "../../routes/authSession";
 const api = axios.create({
   baseURL: API_BASE_URL
 });
+
+const reads=createReadCache();
+export function invalidateReadCache(){reads.clear();}
+let readSession="";
+const rawGet=api.get?.bind(api);
+if(rawGet){api.get=((url:string,config:any={})=>{
+ const session=getActiveSession().token||"";
+ if(session!==readSession){reads.clear();readSession=session;}
+ if(isAuthEndpoint(url)||config.signal||config.cancelToken||(config.responseType&&config.responseType!=="json")||config.headers?.["Cache-Control"]==="no-cache")return rawGet(url,config);
+ const key=[session,config.baseURL||API_BASE_URL,url,stableSerialize(config.params),stableSerialize(config.headers),config.timeout||0].join("|");
+ if(activeMutationCount>0)return rawGet(url,config);
+ return reads.read(key,()=>rawGet(url,config)).then((response:any)=>({...response,data:response.data===undefined?undefined:JSON.parse(JSON.stringify(response.data))}));
+}) as typeof api.get;}
 
 const inFlightMutations = new Set<string>();
 const lockedButtons = new Map<HTMLButtonElement, number>();
@@ -29,7 +43,11 @@ if (typeof document !== "undefined") {
         return;
       }
 
-      lockButton(pendingActionButton);
+      // A submit button must stay enabled until its native click submits the form.
+      // The request interceptor locks it once the form actually starts a mutation.
+      if (!(pendingActionButton.type === "submit" && pendingActionButton.form)) {
+        lockButton(pendingActionButton);
+      }
 
       const button = pendingActionButton;
       const timer = window.setTimeout(() => {
@@ -87,10 +105,12 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   response => {
+    if(isMutationMethod(response.config?.method))reads.clear();
     releaseMutationGuard(response.config);
     return response;
   },
   error => {
+    if(isMutationMethod(error.config?.method))reads.clear();
     releaseMutationGuard(error.config);
 
     if (error?.isDuplicateMutation) {
@@ -102,6 +122,7 @@ api.interceptors.response.use(
       !isAuthEndpoint(error.config?.url)
     ) {
 
+      reads.clear();
       clearSession();
 
       window.location.href = AUTH_CONFIG.loginPath;
@@ -120,6 +141,7 @@ function attachMutationGuard(config: any) {
     return;
   }
 
+  reads.clear();
   const mutationKey = mutationRequestKey(config);
 
   if (inFlightMutations.has(mutationKey)) {

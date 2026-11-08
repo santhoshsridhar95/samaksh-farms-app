@@ -1,16 +1,21 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { adminRoles, farmRoles, salesRoles } from "./routes/roleAccess";
+import RetroDataPage from "./admin/pages/RetroDataPage";
+import SourcingPage from "./admin/pages/SourcingPage";
+import MoneyPage from "./admin/pages/MoneyPage";
 
-import RoomTransferPage from "./admin/pages/RoomTransferPage";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+
+import FarmOperationsPage from "./admin/pages/FarmOperationsPage";
 
 import LoginPage from "./admin/pages/LoginPage";
 
-import InventoryPage from "./admin/pages/InventoryPage";
 
-import ProductionPage from "./admin/pages/ProductionPage";
+
+
 
 import DashboardPage from "./admin/pages/DashBoardPage";
 import HomePage from "./pages/Homepage";
-import HarvestPage from "./admin/pages/HarvestPage";
+
 import OrderPage from "./admin/pages/OrderPage";
 import SalesPage from "./admin/pages/SalesPage";
 import UserManagementPage from "./admin/pages/UserManagementPage";
@@ -33,6 +38,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/admin/historical-data" element={<RoleBasedRoute allowedRoles={adminRoles}><RetroDataPage /></RoleBasedRoute>} />
+        <Route path="/admin/farm-operations" element={<RoleBasedRoute allowedRoles={farmRoles}><FarmOperationsPage /></RoleBasedRoute>} />
+        <Route path="/admin/sourcing" element={<RoleBasedRoute allowedRoles={adminRoles}><SourcingPage /></RoleBasedRoute>} />
+        <Route path="/admin/money" element={<RoleBasedRoute allowedRoles={adminRoles}><MoneyPage /></RoleBasedRoute>} />
+        <Route path="/admin/direct-sales" element={<RoleBasedRoute allowedRoles={salesRoles}><Navigate to="/admin/sales?tab=direct" replace /></RoleBasedRoute>} />
         <Route path="/" element={<HomePage />} />
 
         <Route path="/login" element={<LoginPage />} />
@@ -52,10 +62,7 @@ export default function App() {
           path="/admin/dashboard"
           element={
             <RoleBasedRoute
-              allowedRoles={[
-                "SUPER_ADMIN",
-                "FARM_MANAGER",
-              ]}
+              allowedRoles={adminRoles}
             >
               <DashboardPage />
             </RoleBasedRoute>
@@ -66,9 +73,9 @@ export default function App() {
           path="/admin/inventory"
           element={
             <RoleBasedRoute
-              allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "LABOUR"]}
+              allowedRoles={farmRoles}
             >
-              <InventoryPage />
+              <Navigate to="/admin/farm-operations?tab=inventory" replace />
             </RoleBasedRoute>
           }
         />
@@ -77,9 +84,9 @@ export default function App() {
           path="/admin/production"
           element={
             <RoleBasedRoute
-              allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "LABOUR"]}
+              allowedRoles={farmRoles}
             >
-              <ProductionPage />
+              <Navigate to="/admin/farm-operations?tab=production" replace />
             </RoleBasedRoute>
           }
         />
@@ -88,9 +95,9 @@ export default function App() {
           path="/admin/room-transfer"
           element={
             <RoleBasedRoute
-              allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "LABOUR"]}
+              allowedRoles={farmRoles}
             >
-              <RoomTransferPage />
+              <Navigate to="/admin/farm-operations?tab=rooms" replace />
             </RoleBasedRoute>
           }
         />
@@ -99,9 +106,9 @@ export default function App() {
           path="/admin/harvest"
           element={
             <RoleBasedRoute
-              allowedRoles={["SUPER_ADMIN", "FARM_MANAGER", "LABOUR"]}
+              allowedRoles={farmRoles}
             >
-              <HarvestPage />
+              <Navigate to="/admin/farm-operations?tab=harvest" replace />
             </RoleBasedRoute>
           }
         />
@@ -110,13 +117,7 @@ export default function App() {
           path="/admin/orders"
           element={
             <RoleBasedRoute
-              allowedRoles={[
-                "SUPER_ADMIN",
-                "FARM_MANAGER",
-                "SALES_ADMIN",
-                "SALES_EMPLOYEE",
-                "SALES_USER",
-              ]}
+              allowedRoles={adminRoles}
             >
               <OrderPage />
             </RoleBasedRoute>
@@ -127,13 +128,7 @@ export default function App() {
           path="/admin/sales"
           element={
             <RoleBasedRoute
-              allowedRoles={[
-                "SUPER_ADMIN",
-                "FARM_MANAGER",
-                "SALES_ADMIN",
-                "SALES_EMPLOYEE",
-                "SALES_USER",
-              ]}
+              allowedRoles={salesRoles}
             >
               <SalesPage />
             </RoleBasedRoute>
@@ -143,7 +138,7 @@ export default function App() {
         <Route
           path="/admin/users"
           element={
-            <RoleBasedRoute allowedRoles={["SUPER_ADMIN"]}>
+            <RoleBasedRoute allowedRoles={adminRoles}>
               <UserManagementPage />
             </RoleBasedRoute>
           }
@@ -152,7 +147,7 @@ export default function App() {
         <Route
           path="/admin/audit"
           element={
-            <RoleBasedRoute allowedRoles={["SUPER_ADMIN", "FARM_MANAGER"]}>
+            <RoleBasedRoute allowedRoles={adminRoles}>
               <AuditTrailPage />
             </RoleBasedRoute>
           }
@@ -161,7 +156,7 @@ export default function App() {
         <Route
           path="/admin/reviews"
           element={
-            <RoleBasedRoute allowedRoles={["SUPER_ADMIN"]}>
+            <RoleBasedRoute allowedRoles={adminRoles}>
               <ReviewManagementPage />
             </RoleBasedRoute>
           }
@@ -170,7 +165,7 @@ export default function App() {
         <Route
           path="/admin/product-prices"
           element={
-            <RoleBasedRoute allowedRoles={["SUPER_ADMIN", "FARM_MANAGER"]}>
+            <RoleBasedRoute allowedRoles={adminRoles}>
               <ProductPricingPage />
             </RoleBasedRoute>
           }
@@ -180,10 +175,7 @@ export default function App() {
           path="/admin/server"
           element={
             <RoleBasedRoute
-              allowedRoles={[
-                "SUPER_ADMIN",
-                "FARM_MANAGER",
-              ]}
+              allowedRoles={adminRoles}
             >
               <ServerKeepAlivePage />
             </RoleBasedRoute>

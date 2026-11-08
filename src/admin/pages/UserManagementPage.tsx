@@ -671,7 +671,7 @@ function RolePickerMenu({
 }
 
 function allUserRoles(user: any) {
-  const userRoles = Array.isArray(user.roles) && user.roles.length > 0
+  const userRoles: unknown[] = Array.isArray(user.roles) && user.roles.length > 0
     ? user.roles
     : [user.role || "SALES_EMPLOYEE"];
 

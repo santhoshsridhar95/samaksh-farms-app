@@ -9,3 +9,7 @@
     border: 1px solid #e5e7eb !important;
     border-left: 4px solid #ef4444 !important;
 }
+.dashboard-primary-stats { grid-template-columns:repeat(5,minmax(0,1fr)); }
+@media(max-width:1200px) { .dashboard-primary-stats {grid-template-columns:repeat(3,minmax(0,1fr));} }
+@media(max-width:760px) { .dashboard-primary-stats {grid-template-columns:repeat(2,minmax(0,1fr));} }
+@media(max-width:480px) { .dashboard-primary-stats {grid-template-columns:1fr;} }

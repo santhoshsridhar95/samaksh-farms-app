@@ -1,3 +1,7 @@
+import SalesSimulation from "../components/SalesSimulation";
+import { rupees, todayIndia } from "./MoneyPage";
+import ShopRevenueFocus from "../components/ShopRevenueFocus";
+import SourcingProfitReport from "../components/SourcingProfitReport";
 import { useEffect, useMemo, useState } from "react";
 
 import "./DashBoardPage.css";
@@ -41,9 +45,7 @@ export default function DashboardPage() {
   const [rankLimit, setRankLimit] = useState("5");
   const [rankLocation, setRankLocation] = useState("ALL");
   const [rankSort, setRankSort] = useState("revenue");
-  const [selectedTrendDate, setSelectedTrendDate] = useState(() =>
-    dateKey(new Date()),
-  );
+
 
   useEffect(() => {
     loadDashboard();
@@ -126,27 +128,6 @@ export default function DashboardPage() {
     [sales, rankPeriod, rankLocation, rankLimit, rankSort],
   );
 
-  const salesSimulation = useMemo(() => buildSalesSimulation(sales), [sales]);
-  const selectedTrendSales = useMemo(
-    () => buildSalesDayDetail(sales, selectedTrendDate),
-    [sales, selectedTrendDate],
-  );
-  const todayTrendSales = useMemo(
-    () => buildSalesDayDetail(sales, dateKey(new Date())),
-    [sales],
-  );
-  const selectedVsToday = useMemo(
-    () => ({
-      revenue: selectedTrendSales.revenue - todayTrendSales.revenue,
-      boxes: selectedTrendSales.boxes - todayTrendSales.boxes,
-      buyers: selectedTrendSales.buyers.length - todayTrendSales.buyers.length,
-    }),
-    [selectedTrendSales, todayTrendSales],
-  );
-  const shopPieSegments = useMemo(
-    () => buildShopPieSegments(rankedShops.slice(0, 6)),
-    [rankedShops],
-  );
   const auditDigest = useMemo(() => buildAuditDigest(auditLogs), [auditLogs]);
   const exchangeAnalytics = useMemo(
     () => buildExchangeBoxAnalytics(sales, exchangeHandovers),
@@ -202,13 +183,21 @@ export default function DashboardPage() {
         subtitle="A live command view for inventory, production, orders, and sales."
       />
 
-      <div className="admin-stat-grid">
+      <div className="admin-stat-grid dashboard-primary-stats">
         <StatCard
           label="Revenue"
           value={`Rs. ${dashboard.totalRevenue ?? 0}`}
           icon={<IndianRupee size={20} />}
           tone="green"
           helper="Total sales value"
+        />
+
+        <StatCard
+          label="Current Month Revenue"
+          value={dashboard.currentMonthRevenue == null ? "—" : rupees(Number(dashboard.currentMonthRevenue))}
+          icon={<TrendingUp size={20} />}
+          tone="blue"
+          helper={new Intl.DateTimeFormat("en-IN", {month:"long",year:"numeric",timeZone:"Asia/Kolkata"}).format(new Date()) + " · 1st to " + todayIndia().slice(-2) + " · billed sales"}
         />
 
         <StatCard
@@ -236,52 +225,9 @@ export default function DashboardPage() {
         />
       </div>
 
-      <Panel
-        title="Revenue Focus"
-        subtitle="Lifetime shop purchases, kg movement, collection, and balance."
-      >
-        {(dashboard.shopBalances || []).length === 0 && (
-          <EmptyState
-            title="No shop balances yet"
-            message="Balances will appear after sales are recorded."
-          />
-        )}
+      <SourcingProfitReport />
 
-        {(dashboard.shopBalances || []).length > 0 && (
-          <div className="sales-table-wrap">
-            <table className="admin-data-table">
-              <thead>
-                <tr>
-                  <th>Shop</th>
-                  <th>Category</th>
-                  <th>Location</th>
-                  <th>Boxes</th>
-                  <th>Kgs</th>
-                  <th>Total</th>
-                  <th>Collected</th>
-                  <th>Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(dashboard.shopBalances || []).map((shop: any) => (
-                  <tr key={shop.customerId}>
-                    <td>
-                      <strong>{shop.shopName}</strong>
-                    </td>
-                    <td>{shop.shopCategory || "Shop"}</td>
-                    <td>{shop.location || "R.T. Nagar"}</td>
-                    <td>{shop.totalBoxes ?? 0}</td>
-                    <td>{Number(shop.totalKgs ?? 0).toFixed(2)}</td>
-                    <td>Rs. {shop.totalAmount ?? 0}</td>
-                    <td>Rs. {shop.collectedAmount ?? 0}</td>
-                    <td>Rs. {shop.pendingAmount ?? 0}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Panel>
+      <ShopRevenueFocus />
 
       <Panel
         title="Sales Focus"
@@ -381,199 +327,7 @@ export default function DashboardPage() {
         )}
       </Panel>
 
-      <Panel
-        title="Sales Simulation"
-        subtitle="Day-to-day sales movement, today's shop changes, and shop contribution share."
-      >
-        <div className="dashboard-simulation-grid">
-          <article className="dashboard-chart-card">
-            <header>
-              <div>
-                <h3>Daily Sales Trend</h3>
-                <span>
-                  Today: Rs. {salesSimulation.todayRevenue} | Yesterday: Rs.{" "}
-                  {salesSimulation.yesterdayRevenue}
-                </span>
-              </div>
-              {salesSimulation.delta >= 0 ? (
-                <TrendingUp size={20} />
-              ) : (
-                <TrendingDown size={20} />
-              )}
-            </header>
-
-            <div className="dashboard-bar-chart" aria-label="Daily sales trend">
-              {salesSimulation.dailyTrend.map((day) => (
-                <button
-                  className={`dashboard-bar-item ${
-                    selectedTrendDate === day.key ? "is-selected" : ""
-                  }`}
-                  key={day.key}
-                  type="button"
-                  onClick={() => setSelectedTrendDate(day.key)}
-                  title={`View buyers for ${day.fullLabel}`}
-                >
-                  <div className="dashboard-bar-track">
-                    <span style={{ height: `${day.percent}%` }} />
-                  </div>
-                  <small>{day.label}</small>
-                  <strong>Rs. {day.revenue}</strong>
-                </button>
-              ))}
-            </div>
-
-            <div className="dashboard-trend-detail">
-              <header>
-                <div>
-                  <h4>{selectedTrendSales.label}</h4>
-                  <span>
-                    Compared with today: {formatSignedCurrency(selectedVsToday.revenue)}
-                    {" | "}
-                    {formatSignedNumber(selectedVsToday.boxes)} boxes
-                    {" | "}
-                    {formatSignedNumber(selectedVsToday.buyers)} buyers
-                  </span>
-                </div>
-                <strong>Rs. {selectedTrendSales.revenue}</strong>
-              </header>
-
-              <div className="dashboard-trend-stats">
-                <span>
-                  <small>Buyers</small>
-                  <strong>{selectedTrendSales.buyers.length}</strong>
-                </span>
-                <span>
-                  <small>Boxes</small>
-                  <strong>{selectedTrendSales.boxes}</strong>
-                </span>
-                <span>
-                  <small>Collected</small>
-                  <strong>Rs. {selectedTrendSales.collected}</strong>
-                </span>
-                <span>
-                  <small>Pending</small>
-                  <strong>Rs. {selectedTrendSales.pending}</strong>
-                </span>
-              </div>
-
-              {selectedTrendSales.buyers.length === 0 && (
-                <EmptyState
-                  title="No buyers on this date"
-                  message="Click another bar to inspect that day's shop sales."
-                />
-              )}
-
-              {selectedTrendSales.buyers.length > 0 && (
-                <div className="sales-table-wrap dashboard-trend-buyers">
-                  <table className="admin-data-table">
-                    <thead>
-                      <tr>
-                        <th>Buyer</th>
-                        <th>Location</th>
-                        <th>Boxes</th>
-                        <th>Revenue</th>
-                        <th>Collected</th>
-                        <th>Pending</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedTrendSales.buyers.map((buyer) => (
-                        <tr key={buyer.key}>
-                          <td>
-                            <strong>{buyer.shopName}</strong>
-                            <span>{buyer.shopCategory}</span>
-                          </td>
-                          <td>{buyer.location}</td>
-                          <td>{buyer.boxes}</td>
-                          <td>Rs. {buyer.revenue}</td>
-                          <td>Rs. {buyer.collected}</td>
-                          <td>Rs. {buyer.pending}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </article>
-
-          <article className="dashboard-chart-card">
-            <header>
-              <div>
-                <h3>Shop Sales Share</h3>
-                <span>Top shops by selected sales focus filter</span>
-              </div>
-              <PieChart size={20} />
-            </header>
-
-            {shopPieSegments.length === 0 && (
-              <EmptyState
-                title="No shop share yet"
-                message="Sales share appears after delivery entries."
-              />
-            )}
-
-            {shopPieSegments.length > 0 && (
-              <div className="dashboard-pie-wrap">
-                <div
-                  className="dashboard-pie"
-                  style={{ background: pieGradient(shopPieSegments) }}
-                  aria-label="Shop sales share pie chart"
-                />
-                <div className="dashboard-pie-legend">
-                  {shopPieSegments.map((segment) => (
-                    <div key={segment.label}>
-                      <span style={{ background: segment.color }} />
-                      <strong>{segment.label}</strong>
-                      <small>{segment.percent.toFixed(1)}%</small>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </article>
-        </div>
-
-        <div className="dashboard-movers-grid">
-          <article className="dashboard-chart-card">
-            <header>
-              <div>
-                <h3>Increased Today</h3>
-                <span>Compared with yesterday</span>
-              </div>
-              <TrendingUp size={20} />
-            </header>
-            {salesSimulation.increased.length === 0 && (
-              <EmptyState title="No increases" message="No shop increased today." />
-            )}
-            {salesSimulation.increased.map((shop) => (
-              <div className="dashboard-mover dashboard-mover-up" key={shop.shopName}>
-                <strong>{shop.shopName}</strong>
-                <span>+Rs. {shop.delta}</span>
-              </div>
-            ))}
-          </article>
-
-          <article className="dashboard-chart-card">
-            <header>
-              <div>
-                <h3>Decreased Today</h3>
-                <span>Compared with yesterday</span>
-              </div>
-              <TrendingDown size={20} />
-            </header>
-            {salesSimulation.decreased.length === 0 && (
-              <EmptyState title="No decreases" message="No shop decreased today." />
-            )}
-            {salesSimulation.decreased.map((shop) => (
-              <div className="dashboard-mover dashboard-mover-down" key={shop.shopName}>
-                <strong>{shop.shopName}</strong>
-                <span>Rs. {shop.delta}</span>
-              </div>
-            ))}
-          </article>
-        </div>
-      </Panel>
+      <SalesSimulation />
 
       <Panel
         title="Exchange Box Tracking"
