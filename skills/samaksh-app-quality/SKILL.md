@@ -1,6 +1,6 @@
 ---
 name: samaksh-app-quality
-description: Implement and review Samaksh Farms ERP changes with clear operational screens, consistent financial records, role-aware navigation, and economical database access. Use for this app's React frontend and Spring backend changes.
+description: Implement and review Samaksh Farms ERP changes with mobile-first responsive screens, consistent financial records, role-aware navigation, and economical database access. Use for this app's React frontend and Spring backend changes.
 ---
 
 # Samaksh app quality
@@ -18,3 +18,14 @@ Use the existing AdminUI, table styles, dialogs and API client. Keep Sourcing & 
 - For Excel history, preview first, use stable external references to prevent retry duplicates, validate references, and commit atomically. Never import live data merely to demonstrate the feature.
 
 Validate affected calculations and authorization with meaningful regression tests; run frontend type checks/build and relevant backend tests. Report local verification separately from deployment or live database verification. Work through explicitly ordered user requests in sequence.
+
+## Mobile layout for all operational pages
+
+Mobile is the primary device for this ERP. Apply these rules to sidebar destinations and every nested section, including Money & Expenses, Inventory, Sales, Direct Sales and Sales Planning.
+
+- Reuse `AdminLayout`, `AdminUI` and `src/admin/components/AdminResponsive.css`. Fix shared layout constraints at that layer before adding page-specific overrides. Keep embedded pages inside one shell.
+- Use a compact navigation drawer on phones and tablets, with visible labels, current-page indication, reachable Logout, close/Escape support, focus containment and focus return. Desktop navigation must scroll independently on short screens.
+- Allow tabs and action bars to wrap with readable labels and a clear selected state. Keep secondary actions distinct from tabs. Do not stack sticky tab bars over content or let headers consume most of the phone viewport.
+- Let grids and flex children shrink (`min-width: 0`, `minmax(0, 1fr)`); stack forms and filters when space runs out. Long shop names, employee names and account labels must not widen the page. Keep touch controls at least 44px high and mobile form text at least 16px.
+- Preserve financial table column alignment. Contain wide registers/charts in their own horizontal scroll region with a visible scrolling cue; do not hide data columns or clip the page to conceal overflow. Give dialogs viewport-bounded widths and dynamic-viewport heights, with scrolling content and reachable save/close actions.
+- Verify representative populated pages, nested tabs and dialogs at 320/390px phone, 768px tablet and 1440px desktop widths. Check page overflow, drawer navigation, long labels, touch controls and resize/orientation changes. Use isolated fixtures for layout checks; never create live financial or sales records for visual testing. Run TypeScript and the production build, and distinguish simulated viewport checks from physical-device verification.

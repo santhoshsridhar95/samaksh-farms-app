@@ -13,7 +13,6 @@ export function salesTabsForRoles(roles:string[]){
  return tabs;
 }
 export function landingPage(roles:string[]){
- if(roles.includes("SUPER_ADMIN"))return "/admin/dashboard";
  if(canAccessSection(roles,"sales"))return "/admin/sales";
  if(canAccessSection(roles,"farm-operations"))return "/admin/farm-operations";
  return "/login";

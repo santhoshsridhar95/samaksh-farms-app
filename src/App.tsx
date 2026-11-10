@@ -1,6 +1,7 @@
 import { adminRoles, farmRoles, salesRoles } from "./routes/roleAccess";
 import RetroDataPage from "./admin/pages/RetroDataPage";
 import SourcingPage from "./admin/pages/SourcingPage";
+import EmployeesPage from "./admin/pages/EmployeesPage";
 import MoneyPage from "./admin/pages/MoneyPage";
 
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/admin/historical-data" element={<RoleBasedRoute allowedRoles={adminRoles}><RetroDataPage /></RoleBasedRoute>} />
         <Route path="/admin/farm-operations" element={<RoleBasedRoute allowedRoles={farmRoles}><FarmOperationsPage /></RoleBasedRoute>} />
         <Route path="/admin/sourcing" element={<RoleBasedRoute allowedRoles={adminRoles}><SourcingPage /></RoleBasedRoute>} />
+        <Route path="/admin/employees" element={<RoleBasedRoute allowedRoles={adminRoles}><EmployeesPage /></RoleBasedRoute>} />
         <Route path="/admin/money" element={<RoleBasedRoute allowedRoles={adminRoles}><MoneyPage /></RoleBasedRoute>} />
         <Route path="/admin/direct-sales" element={<RoleBasedRoute allowedRoles={salesRoles}><Navigate to="/admin/sales?tab=direct" replace /></RoleBasedRoute>} />
         <Route path="/" element={<HomePage />} />

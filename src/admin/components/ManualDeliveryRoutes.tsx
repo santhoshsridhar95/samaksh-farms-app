@@ -4,6 +4,7 @@ import { routeSections, shopDirections } from "../utils/shopNavigation";
 export default function ManualDeliveryRoutes({shops, origin}: {shops: any[]; origin: string}) {
   const [routes, setRoutes] = useState<string[][]>([[]]);
   const [selected, setSelected] = useState(0);
+  const [search, setSearch] = useState("");
   const [names, setNames] = useState<Record<number, string>>({});
   const select = (ids: string[], checked: boolean) => setRoutes(current => current.map((route, i) => i === selected && checked ? [...route.filter(id => !ids.includes(id)), ...ids] : i === selected || checked ? route.filter(id => !ids.includes(id)) : route));
   const move = (route: number, index: number, offset: number) => setRoutes(current => current.map((ids, i) => {
@@ -19,7 +20,8 @@ export default function ManualDeliveryRoutes({shops, origin}: {shops: any[]; ori
       const ids = shops.filter(s => s.location === location).map(s => String(s.shopId));
       return <label className="route-option-card" key={location}><input type="checkbox" checked={ids.every(id => routes[selected].includes(id))} onChange={e => select(ids, e.target.checked)} />Area: {location || "Unspecified"}</label>;
     })}</div>
-    <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Select</th><th>Shop</th><th>Area</th><th>Boxes</th><th>Assigned route</th></tr></thead><tbody>{shops.map(shop => <tr key={shop.shopId}><td><input aria-label={`Select ${shop.shopName}`} type="checkbox" checked={routes[selected].includes(String(shop.shopId))} onChange={e => select([String(shop.shopId)], e.target.checked)} /></td><td>{shop.shopName}</td><td>{shop.location}</td><td>{shop.allocatedBoxes || "Visit"}</td><td>{routes.findIndex(ids => ids.includes(String(shop.shopId))) + 1 || "Unassigned"}</td></tr>)}</tbody></table></div>
+    <label>Find shops or areas <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or location" /></label>
+    <div className="sales-table-wrap"><table className="admin-data-table"><thead><tr><th>Select</th><th>Shop</th><th>Area</th><th>Boxes</th><th>Assigned route</th></tr></thead><tbody>{shops.filter(shop => `${shop.shopName} ${shop.location}`.toLowerCase().includes(search.trim().toLowerCase())).map(shop => <tr key={shop.shopId}><td><input aria-label={`Select ${shop.shopName}`} type="checkbox" checked={routes[selected].includes(String(shop.shopId))} onChange={e => select([String(shop.shopId)], e.target.checked)} /></td><td>{shop.shopName}</td><td>{shop.location}</td><td>{shop.allocatedBoxes || "Visit"}</td><td>{routes.findIndex(ids => ids.includes(String(shop.shopId))) + 1 || "Unassigned"}</td></tr>)}</tbody></table></div>
     <p role="status">{unassigned.length} allocated shops still unassigned ({unassigned.reduce((n, s) => n + s.allocatedBoxes, 0)} boxes).</p>
     <div className="sales-route-grid">{routes.map((ids, routeIndex) => {
       const stops = ids.map(id => shops.find(s => String(s.shopId) === id)).filter(Boolean);

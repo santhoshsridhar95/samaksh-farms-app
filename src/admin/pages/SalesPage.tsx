@@ -189,6 +189,7 @@ export default function SalesPage() {
   const [saleEditForm, setSaleEditForm] =
     useState<SaleEditForm>(emptySaleForm);
   const [savingSaleEdit, setSavingSaleEdit] = useState(false);
+  const [saleEditError, setSaleEditError] = useState("");
   const [savingDelivery, setSavingDelivery] = useState(false);
   const savingDeliveryRef = useRef(false);
   const [allocationBoxCount, setAllocationBoxCount] = useState("100");
@@ -1209,6 +1210,7 @@ export default function SalesPage() {
   };
 
   const openSaleEntryEditor = (sale: any) => {
+    setSaleEditError("");
     setEditingSale(sale);
     setSaleEditForm({
       customerId: String(sale.customerId || ""),
@@ -1241,6 +1243,7 @@ export default function SalesPage() {
       return;
     }
 
+    setSaleEditError("");
     savingSaleEditRef.current = true;
     setSavingSaleEdit(true);
 
@@ -1256,28 +1259,28 @@ export default function SalesPage() {
     const billableAmount = Math.max(0, quantity * unitPrice - exchangeCredit);
 
     if (!saleEditForm.customerId) {
-      showBanner({ tone: "error", message: "Shop is required for correction." });
+      setSaleEditError("Shop is required for correction.");
       savingSaleEditRef.current = false;
       setSavingSaleEdit(false);
       return;
     }
 
     if (!saleEditForm.productName.trim()) {
-      showBanner({ tone: "error", message: "Product is required for correction." });
+      setSaleEditError("Product is required for correction.");
       savingSaleEditRef.current = false;
       setSavingSaleEdit(false);
       return;
     }
 
-    if (quantity <= 0) {
-      showBanner({ tone: "error", message: "Boxes must be greater than 0." });
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      setSaleEditError("Boxes cannot be negative.");
       savingSaleEditRef.current = false;
       setSavingSaleEdit(false);
       return;
     }
 
     if (unitPrice < 0 || amountReceivedTodayForEdit < 0 || exchangeBoxes < 0) {
-      showBanner({ tone: "error", message: "Amounts and boxes cannot be negative." });
+      setSaleEditError("Amounts and boxes cannot be negative.");
       savingSaleEditRef.current = false;
       setSavingSaleEdit(false);
       return;
@@ -1293,13 +1296,13 @@ export default function SalesPage() {
         amountCollected: Math.min(billableAmount, amountReceivedTodayForEdit),
         amountReceivedToday: amountReceivedTodayForEdit,
         shopkeeperSellingPrice:
-          Number(saleEditForm.shopkeeperSellingPrice) || undefined,
+          saleEditForm.shopkeeperSellingPrice === "" ? undefined : Number(saleEditForm.shopkeeperSellingPrice),
         exchangeType: saleEditForm.exchangeType,
         exchangeBoxes,
         returnedBoxes: Number(saleEditForm.returnedBoxes) || 0,
         deliveryDate: saleEditForm.deliveryDate || undefined,
         remarks: saleEditForm.remarks,
-      });
+      }, { timeout: 30000 });
 
       const savedSale = response?.data?.data;
       const shopName = editingSale.customerName;
@@ -1318,7 +1321,7 @@ export default function SalesPage() {
         tone: "success",
         message: `${shopName}'s delivery entry corrected successfully.`,
       });
-      await refreshSalesData();
+      try { await refreshSalesData(); } catch { showBanner({tone:"error",message:"Correction saved, but refresh failed. Refresh the Sales page to reload related invoices."}); }
       applySavedSale(savedSale);
       window.setTimeout(() => {
         deliveryShopSalesRef.current?.scrollIntoView({
@@ -1328,12 +1331,7 @@ export default function SalesPage() {
       }, 120);
     } catch (error: any) {
       console.error(error);
-      showBanner({
-        tone: "error",
-        message:
-          error?.response?.data?.message ||
-          "Failed to correct delivery entry.",
-      });
+      setSaleEditError(error?.response?.data?.message || "Could not save the correction. Please retry.");
     } finally {
       savingSaleEditRef.current = false;
       setSavingSaleEdit(false);
@@ -2171,7 +2169,7 @@ export default function SalesPage() {
                   </div>
 
                   <p className="route-origin-hint">
-                    Pick a pin in Google Maps, copy the share link, and paste it here. Coordinates are read automatically.
+                    Enter the starting address or coordinates. For a Google Maps short link, open it and copy the pin coordinates to set an exact starting point.
                   </p>
                 </div>
               </div>
@@ -2219,7 +2217,7 @@ export default function SalesPage() {
               </div>
             </div>
 
-            {manualRouting && <ManualDeliveryRoutes origin={routeOrigin} shops={customers.filter(c => c.active !== false).map(c => boxAllocation.find(b => String(b.shopId) === String(c.id)) || ({shopId: c.id, shopName: c.customerName, location: c.location || "", mapLocation: c.mapLocation, address: c.address, allocatedBoxes: 0}))} />}
+            <div hidden={!manualRouting}><ManualDeliveryRoutes origin={routeOrigin} shops={customers.filter(c => c.active !== false).map(c => boxAllocation.find(b => String(b.shopId) === String(c.id)) || ({shopId: c.id, shopName: c.customerName, location: c.location || "", mapLocation: c.mapLocation, address: c.address, allocatedBoxes: 0}))} /></div>
             {!manualRouting && <>
             <div className="admin-stat-grid">
               <StatCard
@@ -2387,10 +2385,10 @@ export default function SalesPage() {
                 <tbody>
                   {customers.map((customer) => (
                     <tr key={customer.id}>
-                      <td>{customer.customerName}</td>
+                      <td>{customer.customerName}<small style={{display: "block"}}>{(customer.shopStage || "EXISTING").split("_").join(" ").toLowerCase()}</small></td>
                       <td>{customer.shopCategory || "Shop"}</td>
                       <td>{formatShopProducts(customer.products)}</td>
-                      <td>{customer.location || "R.T. Nagar"}</td>
+                      <td>{customer.location || "R.T. Nagar"}<a style={{display: "block"}} href={shopDirections(customer)} target="_blank" rel="noreferrer">{customer.mapLocation ? "Open saved location" : "Find on map"}</a></td>
                       <td>{customer.minimumBoxesPerDay ?? 0}</td>
                       <td>{customer.dailyReturnedBoxes ?? 0}</td>
                       <td>Rs. {customer.defaultBoxPrice ?? 0}</td>
@@ -2777,6 +2775,7 @@ export default function SalesPage() {
               <div className="admin-form-grid sales-entry-edit-grid">
               <Field label="Shop" required>
                 <select
+                  disabled={savingSaleEdit}
                   value={saleEditForm.customerId}
                   onChange={(event) =>
                     updateSaleEditField("customerId", event.target.value)
@@ -2819,6 +2818,7 @@ export default function SalesPage() {
               <Field label="Boxes" required>
                 <input
                   type="number"
+                  disabled={savingSaleEdit}
                   value={saleEditForm.quantity}
                   onChange={(event) =>
                     updateSaleEditField("quantity", event.target.value)
@@ -2909,6 +2909,8 @@ export default function SalesPage() {
             </div>
             </div>
 
+            <p style={{margin:"8px 24px",fontSize:13}}>Receipt corrections update the collector’s balance and reapply shop payments to the oldest invoices. All changes are audited.</p>
+            {saleEditError && <p className="money-error" role="alert" style={{margin:"12px 24px"}}>{saleEditError}</p>}
             <div className="admin-confirm-actions sales-entry-edit-actions">
               <button
                 className="admin-button admin-button-secondary"
@@ -2923,8 +2925,9 @@ export default function SalesPage() {
                 type="button"
                 disabled={savingSaleEdit}
                 onClick={saveSaleEntryEdit}
+                aria-busy={savingSaleEdit}
               >
-                <Save size={17} />
+                {savingSaleEdit ? <MoneySpinner /> : <Save size={17} />}
                 {savingSaleEdit ? "Saving Correction..." : "Save Correction"}
               </button>
             </div>

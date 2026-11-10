@@ -25,7 +25,7 @@ test('route sections preserve all stops, order and continuous origins', () => {
   const links = routeSections('Farm', shops);
   assert.equal(links.length, 3);
   const stops = links.flatMap(link => {const p = new URL(link).searchParams; return [...(p.get('waypoints')?.split('|') || []), p.get('destination')];});
-  assert.deepEqual(stops, shops.map(s => s.mapLocation));
+  assert.deepEqual(Array.from(stops), shops.map(s => s.mapLocation));
   assert.equal(new URL(links[1]).searchParams.get('origin'), '12,73');
   assert.ok(links.every(link => (new URL(link).searchParams.get('waypoints')?.split('|').length || 0) <= 3));
 });
