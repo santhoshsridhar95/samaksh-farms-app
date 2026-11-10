@@ -42,12 +42,15 @@ if (typeof document !== "undefined") {
       if (!pendingActionButton || pendingActionButton.disabled) {
         return;
       }
-
-      // A submit button must stay enabled until its native click submits the form.
-      // The request interceptor locks it once the form actually starts a mutation.
-      if (!(pendingActionButton.type === "submit" && pendingActionButton.form)) {
-        lockButton(pendingActionButton);
+      // Local navigation does not submit a request. Keeping its trigger enabled
+      // also lets native dialogs return keyboard focus when they close.
+      if (pendingActionButton.dataset.localAction === "true") {
+        pendingActionButton = null;
+        return;
       }
+
+      // Never disable during capture: React ignores onClick on a disabled button.
+      // Remember the trigger here; lock it only when its handler starts a request.
 
       const button = pendingActionButton;
       const timer = window.setTimeout(() => {

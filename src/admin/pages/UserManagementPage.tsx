@@ -321,10 +321,11 @@ export default function UserManagementPage() {
       }
 
       const rect = button.getBoundingClientRect();
+      const width = Math.min(Math.max(rect.width, 260), window.innerWidth - 24);
       setRolePickerPosition({
         top: rect.bottom + window.scrollY + 6,
-        left: rect.left + window.scrollX,
-        width: Math.max(rect.width, 260),
+        left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)) + window.scrollX,
+        width,
       });
 
       return userId;

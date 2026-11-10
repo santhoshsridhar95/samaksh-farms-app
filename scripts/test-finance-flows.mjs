@@ -34,6 +34,9 @@ test('Save remains enabled until native form submission; request then locks and 
   });
   listeners.click({ target: button });
   assert.equal(button.disabled, false, 'disabling during capture cancels form submission');
+  button.type = 'button'; button.form = null;
+  listeners.click({ target: button });
+  assert.equal(button.disabled, false, 'capture must not suppress a React onClick handler');
   listeners.submit();
   const config = request({ method: 'post', url: '/api/direct-sales', headers: {}, data: { customerName: 'Customer A' } });
   assert.equal(button.disabled, true);
@@ -123,13 +126,27 @@ test('Funding choices distinguish available farm cash from personal amounts owed
 
 test('Role navigation limits sales staff and farm employees to their workspaces',()=>{
  const {canAccessSection,salesTabsForRoles,landingPage}=loadTs('src/routes/roleAccess.ts');
- for(const role of ['SALES_EMPLOYEE','SALES_USER']){assert.deepEqual(Array.from(salesTabsForRoles([role]),t=>t.id),['delivery','direct']);assert.equal(canAccessSection([role],'money'),false);assert.equal(canAccessSection([role],'farm-operations'),false);assert.equal(landingPage([role]),'/admin/sales');}
- assert.deepEqual(Array.from(salesTabsForRoles(['SALES_ADMIN']),t=>t.id),['delivery','direct','allocation','shops']);
+ for(const role of ['SALES_EMPLOYEE','SALES_USER']){assert.deepEqual(Array.from(salesTabsForRoles([role]),t=>t.id),['delivery','planning','direct']);assert.equal(canAccessSection([role],'money'),false);assert.equal(canAccessSection([role],'employees'),false);assert.equal(canAccessSection([role],'farm-operations'),false);assert.equal(landingPage([role]),'/admin/sales');}
+ assert.deepEqual(Array.from(salesTabsForRoles(['SALES_ADMIN']),t=>t.id),['delivery','planning','direct','allocation','shops']);
  for(const role of ['FARM_MANAGER','LABOUR']){assert.equal(canAccessSection([role],'farm-operations'),true);assert.equal(canAccessSection([role],'sales'),false);assert.equal(canAccessSection([role],'dashboard'),false);assert.equal(landingPage([role]),'/admin/farm-operations');}
- assert.equal(canAccessSection(['FARM_MANAGER','SALES_ADMIN'],'sales'),true);assert.equal(canAccessSection(['FARM_MANAGER','SALES_ADMIN'],'farm-operations'),true);assert.equal(canAccessSection(['SUPER_ADMIN'],'money'),true);assert.equal(salesTabsForRoles(['SUPER_ADMIN']).length,7);
+ assert.equal(canAccessSection(['FARM_MANAGER','SALES_ADMIN'],'sales'),true);assert.equal(canAccessSection(['FARM_MANAGER','SALES_ADMIN'],'farm-operations'),true);assert.equal(canAccessSection(['SUPER_ADMIN'],'money'),true);assert.equal(canAccessSection(['SUPER_ADMIN'],'employees'),true);assert.equal(salesTabsForRoles(['SUPER_ADMIN']).length,8);
 });
 test('Repaying personal funds reduces debt without inflating monthly expenditure',()=>{
  const {monthlyMoney}=loadTs('src/admin/utils/moneyMonthly.ts');
  const result=monthlyMoney([{id:1,name:'Farm',kind:'BANK',balance:800},{id:2,name:'Santosh',kind:'PERSONAL',balance:-300}],[{id:1,type:'OPENING',destinationId:1,amount:1000,date:'2026-10-01'},{id:2,type:'EXPENSE',sourceId:2,amount:500,date:'2026-10-02'},{id:3,type:'REIMBURSEMENT',sourceId:1,destinationId:2,amount:200,date:'2026-11-01'}],'2026-11');
  assert.equal(result.expenses,0);assert.equal(result.rows[1].closing,-300);assert.equal(result.closing,800);
+});
+
+
+test('Actual balance corrections reset cash without changing historical income or expenses',()=>{
+ const {monthlyMoney}=loadTs('src/admin/utils/moneyMonthly.ts');
+ const entries=[{id:1,type:'LEGACY_COLLECTION',destinationId:1,amount:15000,date:'2026-10-01'},{id:2,type:'BALANCE_ADJUSTMENT',sourceId:1,amount:15000,date:'2026-11-10'},{id:3,type:'COLLECTION',destinationId:1,amount:300,date:'2026-11-11'}];
+ const result=monthlyMoney([{id:1,name:'Holder',kind:'HELD'}],entries,'2026-11');
+ assert.equal(result.rows[0].opening,15000);assert.equal(result.rows[0].adjustments,-15000);assert.equal(result.rows[0].paid,0);assert.equal(result.rows[0].closing,300);assert.equal(result.expenses,0);assert.equal(result.collections,300);
+ assert.equal(monthlyMoney([{id:1,name:'Holder',kind:'HELD'}],entries,'2026-10').closing,15000);
+});
+test('Personal contributions add farm funds and a repayable liability without income or spending',()=>{
+ const {monthlyMoney}=loadTs('src/admin/utils/moneyMonthly.ts');
+ const result=monthlyMoney([{id:1,name:'Pocket',kind:'PERSONAL'},{id:2,name:'Sandeep',kind:'HELD'}],[{id:1,type:'CONTRIBUTION',sourceId:1,destinationId:2,amount:500,date:'2026-11-10'}],'2026-11');
+ assert.equal(result.closing,500);assert.equal(result.rows[0].current,-500);assert.equal(result.collections,0);assert.equal(result.expenses,0);
 });
