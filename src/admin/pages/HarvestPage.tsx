@@ -115,6 +115,8 @@ export default function HarvestPage({embedded=false}:{embedded?:boolean}) {
             />
           </Field>
 
+          <p className="money-wide">The signed-in user is recorded automatically when a harvest is created.</p>
+
           <button className="admin-button" type="button" onClick={saveHarvest}>
             {busy?<MoneySpinner/>:<Save size={17}/>}
             {busy?"Saving…":editing?"Update Harvest":"Save Harvest"}
@@ -135,7 +137,7 @@ export default function HarvestPage({embedded=false}:{embedded?:boolean}) {
         )}
 
         {harvests.length > 0 && (
-<div style={{overflowX:"auto"}}><table className="money-table"><thead><tr><th>Date</th><th>Batch</th><th>Quantity (kg)</th><th>Remarks</th><th>Action</th></tr></thead><tbody>{[...harvests].sort((a,b)=>(b.harvestDate||"").localeCompare(a.harvestDate||"")||b.id-a.id).map(harvest=><tr key={harvest.id}><td>{harvest.harvestDate||"—"}</td><td>{harvest.batchCode||"No batch / combined"}</td><td>{harvest.quantity}</td><td style={{whiteSpace:"normal"}}>{harvest.remarks||"—"}</td><td>{admin&&<button type="button" disabled={busy} className="admin-button admin-button-secondary" onClick={()=>{setEditing(harvest.id);setBatchId(harvest.batchId?String(harvest.batchId):"");setHarvestDate(harvest.harvestDate||todayIndia());setQuantity(String(harvest.quantity));setRemarks(harvest.remarks||"");setError("");setMessage("");}}>Edit</button>}</td></tr>)}</tbody></table></div>
+<div style={{overflowX:"auto"}}><table className="money-table"><thead><tr><th>Date</th><th>Batch</th><th>Quantity (kg)</th><th>Recorded by</th><th>Remarks</th><th>Action</th></tr></thead><tbody>{[...harvests].sort((a,b)=>(b.harvestDate||"").localeCompare(a.harvestDate||"")||b.id-a.id).map(harvest=><tr key={harvest.id}><td>{harvest.harvestDate||"—"}</td><td>{harvest.batchCode||"No batch / combined"}</td><td>{harvest.quantity}</td><td>{harvest.createdBy ? `User #${harvest.createdBy}` : "—"}</td><td style={{whiteSpace:"normal"}}>{harvest.remarks||"—"}</td><td>{admin&&<button type="button" disabled={busy} className="admin-button admin-button-secondary" onClick={()=>{setEditing(harvest.id);setBatchId(harvest.batchId?String(harvest.batchId):"");setHarvestDate(harvest.harvestDate||todayIndia());setQuantity(String(harvest.quantity));setRemarks(harvest.remarks||"");setError("");setMessage("");}}>Edit</button>}</td></tr>)}</tbody></table></div>
         )}
       </Panel>
     </Wrapper>

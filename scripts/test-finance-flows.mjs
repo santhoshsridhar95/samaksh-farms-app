@@ -150,3 +150,15 @@ test('Personal contributions add farm funds and a repayable liability without in
  const result=monthlyMoney([{id:1,name:'Pocket',kind:'PERSONAL'},{id:2,name:'Sandeep',kind:'HELD'}],[{id:1,type:'CONTRIBUTION',sourceId:1,destinationId:2,amount:500,date:'2026-11-10'}],'2026-11');
  assert.equal(result.closing,500);assert.equal(result.rows[0].current,-500);assert.equal(result.collections,0);assert.equal(result.expenses,0);
 });
+
+const { fundingSources } = loadTs('src/admin/utils/splitFunding.ts');
+test('split funding preserves exact cents, validates totals and removes deselected accounts', () => {
+ const selection = {'1':'0.10', '2':'0.20'};
+ assert.equal(JSON.stringify(fundingSources(selection,'0.30')),JSON.stringify([{accountId:1,amount:0.1},{accountId:2,amount:0.2}]));
+ delete selection['1'];
+ assert.equal(fundingSources(selection,'0.20').length,1);
+ assert.throws(()=>fundingSources(selection,'0.30'),/equal/);
+ assert.throws(()=>fundingSources({'2':'0'},'0'),/positive/);
+ assert.throws(()=>fundingSources({'2':'1.001'},'1.001'),/decimal/);
+ assert.throws(()=>fundingSources({},'5'),/Choose/);
+});

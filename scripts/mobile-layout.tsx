@@ -32,6 +32,24 @@ const sale = {id: 1, customerId: 1, customerName: shops[0].customerName, product
 if(new URLSearchParams(location.search).get("collection")==="true")Object.assign(sale,{salesChannel:"COLLECTION",productName:"Balance collection",quantity:0,totalAmount:0,amountCollected:0,amountReceivedToday:200,pendingAmount:0,status:"PAID"});
 const page = (content: unknown[]) => ({content, totalPages: 1, totalElements: content.length, last: true});
 api.defaults.adapter = async config => {
+  if (new URLSearchParams(location.search).get("test") === "funding") {
+    const state = window as typeof window & {fundingCalls?: {url: string; body: any}[]; fundingFailure?: boolean};
+    if (config.method === "post" && ["/api/money/entries", "/api/money/entries/split", "/api/sourcing/payments", "/api/sourcing/payments/split"].includes(config.url || "")) {
+      const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+      (state.fundingCalls ||= []).push({url: config.url!, body});
+      await new Promise(resolve => setTimeout(resolve, 600));
+      if (state.fundingFailure) throw Object.assign(new Error("Simulated failure"), {config, response: {status:400, data:{message:"Simulated funding rejection"}}});
+      const original = body.entry || body.payment || body;
+      const data = body.sources ? body.sources.map((source: any, i: number) => ({...original, id:100+i, sourceId:source.accountId, sourceAccountId:source.accountId, amount:source.amount})) : {...original,id:100};
+      return {data:{success:true,data},status:200,statusText:"OK",headers:{},config};
+    }
+    if (config.method === "get" && config.url === "/api/sourcing") {
+      return {data:{success:true,data:{accounts, vendors:[{id:1,name:"Fixture vendor",kind:"VENDOR",active:true}],receipts:[{
+        receipt:{id:1,vendorId:1,date,product:"Mushrooms",quantityKg:10,boxes:50,costPerKg:100,transportCost:0,otherCost:0,expensesBorneBy:"VENDOR",expensesPaidBy:"VENDOR"},
+        vendorName:"Fixture vendor",kind:"VENDOR",costs:{deduction:0,payable:1000},paid:0,balanceDue:1000
+      }],payments:[],recoveries:[],sellingPricePerKg:250}},status:200,statusText:"OK",headers:{},config};
+    }
+  }
   if (config.method !== "get") {
     if(new URLSearchParams(location.search).get("test")!=="sale-edit" || config.method!=="put" || config.url!=="/api/sales/1/entry") throw new Error("Layout fixtures never save data");
     const state=window as typeof window & {fixtureEditCalls?:number;fixtureEditFailure?:boolean};
