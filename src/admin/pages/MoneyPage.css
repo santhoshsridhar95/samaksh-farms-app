@@ -62,3 +62,16 @@
 .simulation-week-chart {margin:24px 0;overflow-x:auto;grid-template-columns:repeat(7,minmax(100px,1fr));}
 
 .money-account-action {display:flex;flex-direction:column;align-items:stretch;gap:8px;min-width:190px;max-width:240px;text-align:left;white-space:normal;} .money-account-action select {width:100%;min-height:44px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;font:inherit;} 
+.split-funding { min-width: 0; }
+.split-funding-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 12px 0; border-bottom: 1px solid #dce4df; }
+.split-funding-choice { display: flex; align-items: center; gap: 10px; min-height: 44px; overflow-wrap: anywhere; }
+.split-funding-choice input[type="checkbox"] { width: 22px; min-width: 22px; height: 44px; margin: 0; }
+.split-funding-amount { display: grid; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.split-funding-amount input { width: 100%; min-width: 0; }
+
+/* Keep long account directories inside the funding picker. */
+.split-funding-list { max-height: min(280px, 32dvh); overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; border: 1px solid #dce4df; border-radius: 10px; padding: 0 12px; margin-top: 8px; }
+.split-funding-list:focus-visible { outline: 2px solid #15803d; outline-offset: 2px; }
+.split-funding-search { display: grid; gap: 6px; margin-bottom: 8px; }
+.money-dialog-actions { position: sticky; bottom: -26px; z-index: 2; background: white; padding: 14px 0; border-top: 1px solid #e2e8f0; }
+@media(max-width:640px) { .money-dialog-actions { bottom: -18px; } }

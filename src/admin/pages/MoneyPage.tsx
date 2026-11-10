@@ -1,3 +1,5 @@
+import SplitFunding from "../components/SplitFunding";
+import { fundingSources, type FundingSelection } from "../utils/splitFunding";
 import { fundingAccountLabel } from "../utils/fundingAccounts";
 import HistoricalDataLink from "../components/HistoricalDataLink";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -15,7 +17,7 @@ const labels: Record<string, string> = { EXPENSE: "Expense", SALARY: "Salary pay
 const kindLabels: Record<string, string> = { HELD: "Farm money held", PERSONAL: "Personal pocket", BANK: "Bank account", SAVINGS: "Savings", HISTORICAL: "Historical recipient" };
 export const rupees = (value: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(value);
 export const todayIndia = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-export function errorMessage(error: unknown) { return (error as { response?: { data?: { message?: string } } })?.response?.data?.message || "Could not complete the request. Please retry."; }
+export function errorMessage(error: unknown) { return (error as { response?: { data?: { message?: string } } })?.response?.data?.message || (error instanceof Error ? error.message : "Could not complete the request. Please retry."); }
 const newForm = (type = "EXPENSE") => ({ type, sourceId: "", destinationId: "", amount: "", description: "", payee: "", employeeId: "", salaryMonth: todayIndia().slice(0, 7), date: todayIndia() });
 export function MoneySpinner() { return <span className="money-spinner" aria-hidden="true" />; }
 export function MoneyDialog({ title, busy, close, children }: { title: string; busy: boolean; close: () => void; children: ReactNode }) {
@@ -44,6 +46,8 @@ export default function MoneyPage() {
   const [editing, setEditing] = useState<Entry | null>(null);
   const [reconciliation, setReconciliation] = useState({accountId:"",actualBalance:"",expectedBalance:0,reason:"Opening cash verification after historical imports"});
   const [movement, setMovement] = useState({sourceId:"",destinationId:"",amount:"",full:false,date:todayIndia(),description:""});
+  const [split, setSplit] = useState(false);
+  const [allocations, setAllocations] = useState<FundingSelection>({});
   const requestKey = useRef(crypto.randomUUID());
   const submitting = useRef(false);
   const currentMonth = todayIndia().slice(0, 7);
@@ -57,6 +61,7 @@ export default function MoneyPage() {
   const reconAccount = monthly.rows.find(a=>String(a.id)===reconciliation.accountId);
   function openReconciliation(id?:number) { const a=monthly.rows.find(a=>a.id===id);setReconciliation({accountId:a?String(a.id):"",actualBalance:a?String(a.current):"",expectedBalance:a?.current||0,reason:"Opening cash verification after historical imports"});requestKey.current=crypto.randomUUID();setError("");setDialog("reconcile"); }
   function openMovement(id?:number,full=false,destinationId?:number) {setMovement({sourceId:id?String(id):"",destinationId:destinationId?String(destinationId):"",amount:"",full,date:todayIndia(),description:""});requestKey.current=crypto.randomUUID();setError("");setDialog("move");}
+  const splitExpense = split && !editing && form.type === "EXPENSE";
   const incoming = ["OPENING", "CONTRIBUTION"].includes(form.type);
   const source = monthly.rows.find(a => String(a.id) === form.sourceId);
   const reversed = new Set(ledger.entries.filter(e => e.reversalOf).map(e => e.reversalOf));
@@ -69,9 +74,9 @@ export default function MoneyPage() {
     try { await fetchLedger(); } catch (e) { setError(errorMessage(e)); } finally { setLoading(false); }
   }
   useEffect(() => { void refresh(); }, []);
-  function openEntry(type: string) { setEditing(null); setForm({ ...newForm(type), employeeId: employeeFilter, payee: directory.employees.find(e=>String(e.id)===employeeFilter)?.name || "", amount: type==="SALARY" && employeeFilter ? String(salaryDefault(Number(employeeFilter),currentMonth)) : "" }); requestKey.current = crypto.randomUUID(); setError(""); setDialog("entry"); }
+  function openEntry(type: string) { setSplit(false); setAllocations({}); setEditing(null); setForm({ ...newForm(type), employeeId: employeeFilter, payee: directory.employees.find(e=>String(e.id)===employeeFilter)?.name || "", amount: type==="SALARY" && employeeFilter ? String(salaryDefault(Number(employeeFilter),currentMonth)) : "" }); requestKey.current = crypto.randomUUID(); setError(""); setDialog("entry"); }
   function editEntry(entry: Entry) {
-    setEditing(entry); setForm({ employeeId: String(entry.employeeId || ""), type: entry.type, sourceId: String(entry.sourceId || ""), destinationId: String(entry.destinationId || ""), amount: String(entry.amount), date: entry.date, description: entry.description, payee: entry.payee || "", salaryMonth: entry.salaryMonth || currentMonth });
+    setSplit(false); setAllocations({}); setEditing(entry); setForm({ employeeId: String(entry.employeeId || ""), type: entry.type, sourceId: String(entry.sourceId || ""), destinationId: String(entry.destinationId || ""), amount: String(entry.amount), date: entry.date, description: entry.description, payee: entry.payee || "", salaryMonth: entry.salaryMonth || currentMonth });
     requestKey.current = crypto.randomUUID(); setError(""); setDialog("entry");
   }
   function closeDialog() { if (!submitting.current) { setDialog(null); setError(""); } }
@@ -82,8 +87,9 @@ export default function MoneyPage() {
       let savedEntry: Entry | undefined;
       if (dialog === "entry") {
         const payload = { ...form, requestKey: requestKey.current, amount: Number(form.amount), sourceId: form.type === "OPENING" ? null : form.sourceId ? Number(form.sourceId) : null, destinationId: incoming || ["TRANSFER", "REIMBURSEMENT"].includes(form.type) ? Number(form.destinationId) : null, employeeId: ["SALARY","EXPENSE"].includes(form.type) && form.employeeId ? Number(form.employeeId) : null, payee: ["SALARY","EXPENSE"].includes(form.type) ? form.payee : null, salaryMonth: form.type === "SALARY" ? form.salaryMonth : null };
-        const r = editing ? await api.put(`/api/money/entries/${editing.id}`, { entry: payload, expectedRevision: editing.revision || 0 }, { timeout: 30000 }) : await api.post("/api/money/entries", payload, { timeout: 30000 });
-        savedEntry = r.data.data; setMonth(form.date.slice(0, 7)); setMessage("Transaction saved. Balances and audit history updated.");
+        const splitSources = splitExpense ? fundingSources(allocations, form.amount) : null;
+        const r = splitSources ? await api.post("/api/money/entries/split", {entry: {...payload, sourceId: splitSources[0].accountId}, sources: splitSources}, {timeout: 30000}) : editing ? await api.put(`/api/money/entries/${editing.id}`, { entry: payload, expectedRevision: editing.revision || 0 }, { timeout: 30000 }) : await api.post("/api/money/entries", payload, { timeout: 30000 });
+        if (splitSources) { const saved: Entry[] = r.data.data; setLedger(l => ({...l, entries: [...saved, ...l.entries.filter(e => !saved.some(s => s.id === e.id))]})); } else savedEntry = r.data.data; setMonth(form.date.slice(0, 7)); setMessage("Transaction saved. Balances and audit history updated.");
       } else if (dialog === "reconcile") {
         const r = await api.post("/api/money/reconcile",{...reconciliation,accountId:Number(reconciliation.accountId),actualBalance:Number(reconciliation.actualBalance),requestKey:requestKey.current},{timeout:30000});
         savedEntry=r.data.data;setMonth(currentMonth);setMessage("Actual balance saved. Historical entries remain intact; new transactions update this corrected balance.");
@@ -126,15 +132,17 @@ export default function MoneyPage() {
     {dialog && <MoneyDialog title={dialog === "reconcile" ? "Set actual money held" : dialog === "move" ? "Transfer money / add personal funds" : dialog === "entry" ? (editing ? "Edit transaction" : labels[form.type]) : dialog === "account" ? "Add account" : "Correct a transaction"} busy={busy} close={closeDialog}><form onSubmit={save} aria-busy={busy}><fieldset disabled={busy} className="money-form money-fieldset">
       {dialog === "entry" && <>
         {editing && <Field label="Transaction type"><select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value, sourceId: "", destinationId: "" }))}>{Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field>}
-        {(!incoming || form.type === "CONTRIBUTION") && <Field label={form.type === "CONTRIBUTION" ? "Personal pocket providing funds" : "Paid from"} required><select required value={form.sourceId} onChange={e => setForm(f => ({ ...f, sourceId: e.target.value }))}><option value="">Select funding source</option>{monthly.rows.filter(a => form.type === "CONTRIBUTION" ? a.kind === "PERSONAL" : !["TRANSFER","REIMBURSEMENT"].includes(form.type) || a.kind !== "PERSONAL").map(a => <option key={a.id} value={a.id}>{fundingAccountLabel({...a,balance:a.current})}</option>)}</select></Field>}
+        {!splitExpense && (!incoming || form.type === "CONTRIBUTION") && <Field label={form.type === "CONTRIBUTION" ? "Personal pocket providing funds" : "Paid from"} required><select required value={form.sourceId} onChange={e => setForm(f => ({ ...f, sourceId: e.target.value }))}><option value="">Select funding source</option>{monthly.rows.filter(a => form.type === "CONTRIBUTION" ? a.kind === "PERSONAL" : !["TRANSFER","REIMBURSEMENT"].includes(form.type) || a.kind !== "PERSONAL").map(a => <option key={a.id} value={a.id}>{fundingAccountLabel({...a,balance:a.current})}</option>)}</select></Field>}
         {(incoming || ["TRANSFER", "REIMBURSEMENT"].includes(form.type)) && <Field label={form.type === "REIMBURSEMENT" ? "Repaid to" : "Received into"} required><select required value={form.destinationId} onChange={e => setForm(f => ({ ...f, destinationId: e.target.value }))}><option value="">Select recipient account</option>{monthly.rows.filter(a => (form.type === "REIMBURSEMENT" ? a.kind === "PERSONAL" : a.kind !== "PERSONAL") && String(a.id) !== form.sourceId).map(a => <option key={a.id} value={a.id}>{fundingAccountLabel({...a,balance:a.current})}</option>)}</select></Field>}
+        {!editing && form.type === "EXPENSE" && <label className="money-wide split-funding-choice"><input type="checkbox" checked={split} onChange={e => {setSplit(e.target.checked); setAllocations({});}}/> Pay from multiple sources</label>}
+        {splitExpense && <SplitFunding accounts={monthly.rows.map(a => ({...a, balance:a.current}))} value={allocations} onChange={setAllocations} total={Number(form.amount || 0)}/>}
         <Field label="Amount (₹)" required><input required type="number" min="0.01" max="999999999999.99" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></Field>
         <Field label="Payment date" required><input required type="date" max={todayIndia()} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></Field>
         {["SALARY","EXPENSE"].includes(form.type) && <Field label={form.type==="SALARY"?"Employee":"Employee expense (optional)"} required={form.type==="SALARY"}><select required={form.type==="SALARY" && !editing?.payee} value={form.employeeId} onChange={e=>{const employee=directory.employees.find(p=>String(p.id)===e.target.value);setForm(f=>({...f,employeeId:e.target.value,payee:employee?.name || "",amount:f.type==="SALARY" && employee?String(salaryDefault(employee.id,f.salaryMonth)):f.amount}));}}><option value="">{editing?.payee && !editing.employeeId ? "Legacy: " + editing.payee : "Select employee"}</option>{directory.employees.map(e=><option key={e.id} value={e.id}>{e.name} · {e.designation}{!e.active?" (inactive)":""}</option>)}</select><Link to="/admin/employees">Manage employees and salaries</Link></Field>}
         {form.type === "SALARY" && <><Field label="Salary for month" required><input required type="month" value={form.salaryMonth} onChange={e => setForm(f => ({ ...f, salaryMonth: e.target.value, amount: f.employeeId ? String(salaryDefault(Number(f.employeeId),e.target.value)) : f.amount }))} /></Field></>}
         {form.type==="SALARY"&&selectedSalary&&<p className="money-wide">Monthly salary {rupees(selectedSalary.salary)} · already paid {rupees(selectedSalary.paid)} · remaining {rupees(selectedSalary.remaining)}. {editing?"Totals include the payment being edited.":"The amount starts at the remaining salary; adjust it for a partial payment."}</p>}
         <Field label={form.type === "CONTRIBUTION" ? "Contributor and purpose" : "Purpose / details"} span="full" required><textarea required maxLength={1000} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></Field>
-        {source && <p className="money-wide">{source.kind === "PERSONAL" ? form.type === "CONTRIBUTION" ? "Adds farm funds and records the amount owed to this personal pocket." : "Personal spending: farm-held money stays unchanged." : `Deduct ${rupees(Number(form.amount || 0))} from ${source.name}’s farm funds.`}</p>}
+        {!splitExpense && source && <p className="money-wide">{source.kind === "PERSONAL" ? form.type === "CONTRIBUTION" ? "Adds farm funds and records the amount owed to this personal pocket." : "Personal spending needs no available balance. This amount increases what the farm owes this person; farm-held money stays unchanged." : `Deduct ${rupees(Number(form.amount || 0))} from ${source.name}’s farm funds.`}</p>}
         {form.type === "REIMBURSEMENT" && <p className="money-wide">Repay only money actually returned to this person. Partial repayments are supported; the remaining amount stays owed. Edit repayments here or in Transactions.</p>}
         {form.type === "OPENING" && <p className="money-wide">Only enter verified money missing from the app. Do not count imported collections again.</p>}
       </>}
