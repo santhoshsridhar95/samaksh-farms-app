@@ -88,7 +88,7 @@ try {
       }
       if(view === 'money') {
         await evaluate(`[...document.querySelectorAll('[role="tab"]')].find(el=>el.textContent.trim()==='Monthly overview')?.click()`);
-        for(const action of ['Set actual balances','Transfer / add funds']) {
+        for(const action of ['Set actual balances','Add funds to holder','Transfer / add funds']) {
           await evaluate(`[...document.querySelectorAll('button')].find(el=>el.textContent.trim()===${JSON.stringify(action)})?.click()`);
           await pause(100);await check(`money/${action}/${width}`);
           const bounds=await evaluate(`(()=>{const d=document.querySelector('.money-dialog[open]');if(!d)return null;const r=d.getBoundingClientRect();return {left:r.left,right:r.right,bottom:r.bottom};})()`);
