@@ -1,3 +1,4 @@
+import { WorkAttribution, WorkerName } from "../components/WorkAttribution";
 import { MoneySpinner, errorMessage, todayIndia } from "./MoneyPage";
 import "./MoneyPage.css";
 import { Fragment } from "react";
@@ -12,7 +13,9 @@ export default function RoomTransferPage({embedded=false}:{embedded?:boolean}) {
   const Wrapper=embedded?Fragment:AdminLayout;
   const [busy,setBusy]=useState(false),[error,setError]=useState(""),[message,setMessage]=useState("");
   const saving=useRef(false);
+  const [performedByEmployeeId,setPerformedByEmployeeId]=useState("");
   const [batches, setBatches] = useState<any[]>([]);
+  const [movements,setMovements]=useState<any[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState("");
   const [movedToLightRoom, setMovedToLightRoom] = useState("");
   const [contaminatedBags, setContaminatedBags] = useState("");
@@ -26,7 +29,8 @@ export default function RoomTransferPage({embedded=false}:{embedded?:boolean}) {
 
   const loadBatches = async () => {
     try {
-      const response = await api.get("/api/production");
+      const [response,history] = await Promise.all([api.get("/api/production"),api.get("/api/production-movements")]);
+      setMovements(history.data.data);
       setBatches(response.data.data);
     } catch (error) {
       setError(errorMessage(error));
@@ -49,6 +53,7 @@ export default function RoomTransferPage({embedded=false}:{embedded?:boolean}) {
           movedToLightRoom: movedToLightRoom ? Number(movedToLightRoom) : 0,
           contaminatedBags: contaminatedBags ? Number(contaminatedBags) : 0,
           discardedBags: discardedBags ? Number(discardedBags) : 0,
+          performedByEmployeeId: performedByEmployeeId ? Number(performedByEmployeeId) : null,
           remarks
         }
       );
@@ -58,7 +63,7 @@ export default function RoomTransferPage({embedded=false}:{embedded?:boolean}) {
       setMovedToLightRoom("");
       setContaminatedBags("");
       setDiscardedBags("");
-      setRemarks("");
+      setRemarks("");setPerformedByEmployeeId("");
 
       await loadBatches();
     } catch (error: any) {
@@ -138,7 +143,7 @@ export default function RoomTransferPage({embedded=false}:{embedded?:boolean}) {
             />
           </Field>
 
-          <Field label="Remarks">
+          <WorkAttribution value={performedByEmployeeId} onChange={setPerformedByEmployeeId}/><Field label="Remarks">
             <input
               value={remarks}
               onChange={(event) => setRemarks(event.target.value)}
@@ -167,6 +172,7 @@ export default function RoomTransferPage({embedded=false}:{embedded?:boolean}) {
 <div style={{overflowX:"auto"}}><table className="money-table"><thead><tr><th>Batch</th><th>Status</th><th>Dark room</th><th>Light room</th><th>Contaminated</th><th>Discarded</th></tr></thead><tbody>{batches.map(batch=><tr key={batch.id}><td>{batch.batchCode}</td><td>{batch.status}</td><td>{batch.darkRoomBags}</td><td>{batch.lightRoomBags}</td><td>{batch.contaminatedBags}</td><td>{batch.discardedBags}</td></tr>)}</tbody></table></div>
         )}
       </Panel>
+    <Panel title="Room transfer history"><div className="admin-table-wrapper"><table className="money-table"><thead><tr><th>Date / batch</th><th>Moved bags</th><th>Contaminated / discarded</th><th>Work done by</th></tr></thead><tbody>{[...movements].sort((a,b)=>b.id-a.id).map(m=><tr key={m.id}><td>{m.movementDate?.slice(0,10)}<small>{m.batchCode}</small></td><td>{m.movedToLightRoom}</td><td>{m.contaminatedBags} / {m.discardedBags}</td><td><WorkerName id={m.performedByEmployeeId}/></td></tr>)}</tbody></table></div>{!movements.length&&<EmptyState title="No room transfers yet"/>}</Panel>
     </Wrapper>
   );
 }

@@ -4,6 +4,9 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import api from "../src/admin/services/api";
 import MoneyPage from "../src/admin/pages/MoneyPage";
+import SalesForecast from "../src/admin/components/SalesForecast";
+import AdminLayout from "../src/admin/components/AdminLayout";
+import { shiftDay } from "../src/admin/utils/salesForecast";
 import SalesPage from "../src/admin/pages/SalesPage";
 import FarmOperationsPage from "../src/admin/pages/FarmOperationsPage";
 import SourcingPage from "../src/admin/pages/SourcingPage";
@@ -27,14 +30,15 @@ const date = new Intl.DateTimeFormat("en-CA", {timeZone: "Asia/Kolkata"}).format
 const shops = [{id: 1, customerName: "Sri Lakshmi Fresh Vegetables and Mushroom Supermarket", shopCategory: "Vegetable Shop", location: "R.T. Nagar", minimumBoxesPerDay: 10, defaultBoxPrice: 50, active: true, products: ["Oyster Mushroom"], address: "Very long address near the main market, Bengaluru", phoneNumber: "9999999999", email: "long-shop-contact@example.test"}];
 const accounts = [{id: 1, name: "Farm bank account with a long holder name", kind: "BANK", balance: 100000}, {id: 2, name: "Personal pocket with a long employee name", kind: "PERSONAL", balance: -500}];
 const employee = {id: 1, name: "Employee with a long full name", designation: "Delivery and harvest coordinator", responsibilities: "Coordinates shops and daily deliveries", joinedOn: "2026-01-01", active: true, version: 0};
-const batch = {id: 1, batchCode: "OYSTER-2026-VERY-LONG-BATCH-REFERENCE", mushroomType: "OYSTER", bagsUsed: 100, spawnUsed: 20, pelletsUsed: 50, darkRoomBags: 40, lightRoomBags: 60, contaminatedBags: 0, discardedBags: 0, startDate: date, status: "ACTIVE"};
+const batch = {performedByEmployeeId:1,id: 1, batchCode: "OYSTER-2026-VERY-LONG-BATCH-REFERENCE", mushroomType: "OYSTER", bagsUsed: 100, spawnUsed: 20, pelletsUsed: 50, darkRoomBags: 40, lightRoomBags: 60, contaminatedBags: 0, discardedBags: 0, startDate: date, status: "ACTIVE"};
 const sale = {id: 1, customerId: 1, customerName: shops[0].customerName, productName: "Oyster Mushroom", quantity: 10, unitPrice: 50, totalAmount: 500, amountCollected: 300, pendingAmount: 200, saleDate: date + "T09:00:00", exchangeType: "NONE", status: "PARTIAL"};
 if(new URLSearchParams(location.search).get("collection")==="true")Object.assign(sale,{salesChannel:"COLLECTION",productName:"Balance collection",quantity:0,totalAmount:0,amountCollected:0,amountReceivedToday:200,pendingAmount:0,status:"PAID"});
 const page = (content: unknown[]) => ({content, totalPages: 1, totalElements: content.length, last: true});
+const directEditFixture=new URLSearchParams(location.search).get("test")==="direct-edit";
 api.defaults.adapter = async config => {
   if (new URLSearchParams(location.search).get("test") === "funding") {
     const state = window as typeof window & {fundingCalls?: {url: string; body: any}[]; fundingFailure?: boolean};
-    if (config.method === "post" && ["/api/money/entries", "/api/money/entries/split", "/api/sourcing/payments", "/api/sourcing/payments/split"].includes(config.url || "")) {
+    if ((config.method === "put" && config.url === "/api/sourcing/payments/100") || config.method === "post" && ["/api/money/entries", "/api/money/entries/split", "/api/sourcing/payments", "/api/sourcing/payments/split"].includes(config.url || "")) {
       const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
       (state.fundingCalls ||= []).push({url: config.url!, body});
       await new Promise(resolve => setTimeout(resolve, 600));
@@ -46,9 +50,15 @@ api.defaults.adapter = async config => {
     if (config.method === "get" && config.url === "/api/sourcing") {
       return {data:{success:true,data:{accounts, vendors:[{id:1,name:"Fixture vendor",kind:"VENDOR",active:true}],receipts:[{
         receipt:{id:1,vendorId:1,date,product:"Mushrooms",quantityKg:10,boxes:50,costPerKg:100,transportCost:0,otherCost:0,expensesBorneBy:"VENDOR",expensesPaidBy:"VENDOR"},
-        vendorName:"Fixture vendor",kind:"VENDOR",costs:{deduction:0,payable:1000},paid:0,balanceDue:1000
-      }],payments:[],recoveries:[],sellingPricePerKg:250}},status:200,statusText:"OK",headers:{},config};
+        vendorName:"Fixture vendor",kind:"VENDOR",costs:{deduction:0,payable:1000},paid:new URLSearchParams(location.search).has("settled")?1000:0,balanceDue:new URLSearchParams(location.search).has("settled")?0:1000
+      }],payments:new URLSearchParams(location.search).has("settled")?[{id:100,receiptId:1,sourceAccountId:2,amount:1000,additionalAmount:0,date,notes:"Original payment"}]:[],recoveries:[],sellingPricePerKg:250}},status:200,statusText:"OK",headers:{},config};
     }
+  }
+  if(directEditFixture && config.method==="put" && config.url==="/api/direct-sales/1") {
+    const state=window as typeof window & {directCalls?:any[]};const body=typeof config.data==="string"?JSON.parse(config.data):config.data;(state.directCalls ||= []).push(body);
+    await new Promise(resolve=>setTimeout(resolve,500));
+    Object.assign(sale,body,{totalAmount:body.quantity*body.unitPrice,pendingAmount:body.quantity*body.unitPrice-body.amountCollected,saleDate:body.saleDate+"T09:00:00"});
+    return {data:{success:true,data:{customer:shops[0],sale:{...sale,collectorName:employee.name,fingerprint:"sale-v2"}}},status:200,statusText:"OK",headers:{},config};
   }
   if (config.method !== "get") {
     if(new URLSearchParams(location.search).get("test")!=="sale-edit" || config.method!=="put" || config.url!=="/api/sales/1/entry") throw new Error("Layout fixtures never save data");
@@ -64,12 +74,14 @@ api.defaults.adapter = async config => {
   const fixtures: Record<string, unknown> = {
     "/api/customers": page(shops), "/api/sales": page([sale]), "/api/users": [{id:1,name:employee.name,email:"long-employee-contact@example.test",roles:["SALES_EMPLOYEE"],role:"SALES_EMPLOYEE",active:true}],
     "/api/products": [{id: 1, productName: "Oyster Mushroom", name: "Oyster Mushroom", price: 50, active: true}],
-    "/api/sales/planning-history": {today: date, from: "2026-01-01", days: [{date, customerId: 1, product: "Oyster Mushroom", boxes: 10, exchanges: 0, returns: 0}]},
-    "/api/direct-sales/customers": shops, "/api/direct-sales": [sale],
+    "/api/sales/planning-history": {today: date, from: "2026-01-01", days: Array.from({length:56},(_,i)=>({date:shiftDay(date,-i-1),customerId:1,product:"Oyster Mushroom",boxes:10+(i%7)*5,exchanges:1,returns:0}))},
+    "/api/direct-sales/customers": shops.map(c=>({...c,fingerprint:"customer-v1"})), "/api/direct-sales": [{...sale,purchaseLocation:"Farm gate market",remarks:"Original purchase notes",collectorUserId:1,collectorName:employee.name,fingerprint:"sale-v1"}],
     "/api/money": {accounts, entries: [{id: 1, type: "OPENING", destinationId: 1, amount: 100000, date, description: "Opening", recordedBy: "fixture@example.test"}], reconciliationRequired: false},
     "/api/employees": {employees: [employee], salaries: [{id: 1, employeeId: 1, effectiveMonth: "2026-01", amount: 18000}]},
     "/api/sourcing": {vendors: [], receipts: [], payments: [], recoveries: [], accounts, sellingPricePerKg: 250},
-    "/api/production": [batch], "/api/harvest": [], "/api/orders": page([]),
+    "/api/production-movements": [{id:1,batchCode:batch.batchCode,movementDate:date,movedToLightRoom:20,contaminatedBags:1,discardedBags:0,performedByEmployeeId:1}],
+    "/api/employees/1/report": {employee,salaryHistory:[],payroll:[],payments:[],contributions:[],activity:[],farmWork:[{reference:"Harvest #1",date,category:"HARVEST_KG",quantity:12.5,unit:"kg",numberOfBoxes:50,details:"Combined harvest"}]},
+    "/api/production": [batch], "/api/harvest": [{id:1,harvestDate:date,quantity:12.5,numberOfBoxes:50,performedByEmployeeId:1,createdBy:99,remarks:"Combined harvest"}], "/api/orders": page([]),
     "/api/inventory-options": [{id: "spawn", category: "ITEM", code: "SPAWN", label: "Oyster mushroom spawn", unit: "kg", active: true}],
     "/api/inventory-transactions": [{id: 1, inventoryType: "SPAWN", transactionType: "PURCHASE", quantity: 30, remarks: "Sample stock", transactionDate: date, createdByEmail: "fixture@example.test"}],
     "/api/farm-dashboard": {},
@@ -80,6 +92,7 @@ api.defaults.adapter = async config => {
   };
   return {data: {success: true, data: fixtures[path] ?? []}, status: 200, statusText: "OK", headers: {}, config};
 };
-const views: Record<string, React.ComponentType> = {money: MoneyPage, sales: SalesPage, farm: FarmOperationsPage, sourcing: SourcingPage, employees: EmployeesPage, orders: OrderPage, dashboard:DashboardPage, users:UserManagementPage, audit:AuditTrailPage, reviews:ReviewManagementPage, prices:ProductPricingPage, server:ServerKeepAlivePage, historical:RetroDataPage};
+const WeekdayFixture=()=> <AdminLayout><h1>Weekday guide checks</h1><SalesForecast revision={0} customerId="1" product="Oyster Mushroom" date={date}/><SalesForecast revision={0}/></AdminLayout>;
+const views: Record<string, React.ComponentType> = {weekday:WeekdayFixture,money: MoneyPage, sales: SalesPage, farm: FarmOperationsPage, sourcing: SourcingPage, employees: EmployeesPage, orders: OrderPage, dashboard:DashboardPage, users:UserManagementPage, audit:AuditTrailPage, reviews:ReviewManagementPage, prices:ProductPricingPage, server:ServerKeepAlivePage, historical:RetroDataPage};
 const View = views[new URLSearchParams(location.search).get("view") || "money"] || MoneyPage;
 createRoot(document.getElementById("root")!).render(<BrowserRouter><View /></BrowserRouter>);
