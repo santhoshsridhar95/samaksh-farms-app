@@ -61,6 +61,11 @@ export default function MoneyPage() {
   const reconAccount = monthly.rows.find(a=>String(a.id)===reconciliation.accountId);
   function openReconciliation(id?:number) { const a=monthly.rows.find(a=>a.id===id);setReconciliation({accountId:a?String(a.id):"",actualBalance:a?String(a.current):"",expectedBalance:a?.current||0,reason:"Opening cash verification after historical imports"});requestKey.current=crypto.randomUUID();setError("");setDialog("reconcile"); }
   function openMovement(id?:number,full=false,destinationId?:number) {setMovement({sourceId:id?String(id):"",destinationId:destinationId?String(destinationId):"",amount:"",full,date:todayIndia(),description:""});requestKey.current=crypto.randomUUID();setError("");setDialog("move");}
+  const reimbursementBalances = ledger.entries.filter(e => e.id !== editing?.id && (e.destinationId === Number(form.destinationId) || e.sourceId === Number(form.destinationId))).reduce((sum, e) => {
+    const owed = (e.sourceId === Number(form.destinationId) ? 1 : -1) * Math.round(Number(e.amount) * 100);
+    return {current: sum.current + owed, dated: sum.dated + (e.date <= form.date ? owed : 0)};
+  }, {current: 0, dated: 0});
+  const reimbursementLimit = Math.max(0, Math.min(reimbursementBalances.current, reimbursementBalances.dated)) / 100;
   const splitExpense = split && !editing && form.type === "EXPENSE";
   const incoming = ["OPENING", "CONTRIBUTION"].includes(form.type);
   const source = monthly.rows.find(a => String(a.id) === form.sourceId);
@@ -143,6 +148,7 @@ export default function MoneyPage() {
         {form.type==="SALARY"&&selectedSalary&&<p className="money-wide">Monthly salary {rupees(selectedSalary.salary)} · already paid {rupees(selectedSalary.paid)} · remaining {rupees(selectedSalary.remaining)}. {editing?"Totals include the payment being edited.":"The amount starts at the remaining salary; adjust it for a partial payment."}</p>}
         <Field label={form.type === "CONTRIBUTION" ? "Contributor and purpose" : "Purpose / details"} span="full" required><textarea required maxLength={1000} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></Field>
         {!splitExpense && source && <p className="money-wide">{source.kind === "PERSONAL" ? form.type === "CONTRIBUTION" ? "Adds farm funds and records the amount owed to this personal pocket." : "Personal spending needs no available balance. This amount increases what the farm owes this person; farm-held money stays unchanged." : `Deduct ${rupees(Number(form.amount || 0))} from ${source.name}’s farm funds.`}</p>}
+        {form.type === "REIMBURSEMENT" && form.destinationId && <p className="money-wide" role="status">Owed now: {rupees(Math.max(0, reimbursementBalances.current) / 100)} · Owed on {form.date}: {rupees(Math.max(0, reimbursementBalances.dated) / 100)} · Maximum repayment: {rupees(reimbursementLimit)}. Use the actual repayment date; expenses dated later are not yet owed on that date.</p>}
         {form.type === "REIMBURSEMENT" && <p className="money-wide">Repay only money actually returned to this person. Partial repayments are supported; the remaining amount stays owed. Edit repayments here or in Transactions.</p>}
         {form.type === "OPENING" && <p className="money-wide">Only enter verified money missing from the app. Do not count imported collections again.</p>}
       </>}
