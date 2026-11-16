@@ -1,4 +1,4 @@
-export type DirectCustomer = { id: number; customerName: string; phoneNumber?: string; email?: string; address?: string };
+export type DirectCustomer = { id: number; fingerprint?: string; customerName: string; phoneNumber?: string; email?: string; address?: string };
 export function normalizePhone(value = "") {
   const digits = value.replace(/\D/g, "");
   return digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;

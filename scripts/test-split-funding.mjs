@@ -90,5 +90,23 @@ try {
   assert(await evaluate('!document.querySelector(".money-dialog")'),'Single personal payment failed');
   console.log(view+' personal funding, historical date, split totals, retry, and layout passed at '+width+'px');
  }
+ for(const width of [320,390,768,1440]) {
+  await cdp('Emulation.setDeviceMetricsOverride',{width,height:850,deviceScaleFactor:1,mobile:width<768});
+  await cdp('Page.navigate',{url:base+'/scripts/mobile-layout.html?view=sourcing&test=funding&settled=true'});
+  for(let i=0;i<80;i++){await pause(100);if(await evaluate('document.body.textContent.includes("Cleared")'))break;}
+  assert(await evaluate('document.body.textContent.includes("Cleared") && ![...document.querySelectorAll("button")].some(b=>b.textContent.trim()==="Pay vendor")'),'Settled receipt still offers Pay vendor');
+  assert(await evaluate('[...document.querySelectorAll("button")].find(b=>b.textContent.trim()==="Record vendor payment").disabled'),'No outstanding receipts should disable new payment');
+  await click('Edit payments');await pause(100);await click('Edit');await pause(100);
+  assert(await evaluate('document.querySelector(".money-dialog").textContent.includes("includes the original payment")'),'Edit should explain restored invoice allowance');
+  await field('Paid from','1','select');await field('Invoice payment','1000');
+  assert(await evaluate('document.querySelector(".money-dialog form").checkValidity()'),'Settled payment cannot be edited');
+  await click('Revert payment');await pause(100);
+  assert(await evaluate('document.querySelector(".money-dialog").textContent.includes("Saving will revert")'),'Reversal must explain effect before saving');
+  assert(await evaluate('document.documentElement.scrollWidth<=innerWidth+1 && document.querySelector(".money-dialog").scrollWidth<=document.querySelector(".money-dialog").clientWidth+1'),'Revert dialog overflow');
+  await click('Save');await pause(800);
+  const call=await evaluate('window.fundingCalls.at(-1)');
+  assert(call.url==='/api/sourcing/payments/100'&&call.body.amount===0&&call.body.additionalAmount===0,'Revert must edit original payment to zero');
+  console.log('Cleared receipt, payment editing and reversal passed at '+width+'px');
+ }
  assert(errors.length===0,JSON.stringify(errors));
 } finally {await send('Browser.close').catch(()=>{});ws.close();chrome.kill();server?.kill();}

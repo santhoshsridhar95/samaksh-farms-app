@@ -55,7 +55,7 @@ const check = async label => {
 try {
   for(const width of [320, 390, 768, 1440]) {
     await cdp('Emulation.setDeviceMetricsOverride', {width, height: 850, deviceScaleFactor: 1, mobile: width < 768});
-    for(const view of ['money', 'sales', 'farm', 'sourcing', 'employees', 'orders', 'dashboard', 'users', 'audit', 'reviews', 'prices', 'server', 'historical']) {
+    for(const view of ['weekday', 'money', 'sales', 'farm', 'sourcing', 'employees', 'orders', 'dashboard', 'users', 'audit', 'reviews', 'prices', 'server', 'historical']) {
       const navigation = await cdp('Page.navigate', {url: `${base}/scripts/mobile-layout.html?view=${view}`});
       if(navigation.errorText) throw new Error(navigation.errorText);
       for(let i = 0; i < 80; i++) {await pause(100); if(await evaluate(`!!document.querySelector('.admin-content h1') && !document.body.textContent.includes('Loading weekday suggestions')`)) break;}
@@ -65,19 +65,43 @@ try {
         await evaluate(`document.querySelectorAll('details').forEach(el => el.open = true)`);
         await check(`${view}/expanded/${width}`);
       }
+      if(view==='weekday') {
+        const options=await evaluate(`[...document.querySelectorAll('.forecast-inline-selector select,.forecast-controls select')].filter(s=>s.closest('label')?.textContent.startsWith('History')).map(s=>[...s.options].map(o=>o.value).join(','))`);
+        if(options.length!==2||options.some(o=>o!=='1,2,3,4,5,6,7,8'))failures.push({label:'Weekday history options',options,width});
+        await evaluate(`document.querySelectorAll('details').forEach(d=>d.open=true)`);await check(`weekday/history-expanded/${width}`);
+      }
       const tabs = await evaluate(`[...document.querySelectorAll('[role="tab"]')].map(el => el.textContent.trim())`);
       for(const tab of tabs) {
         await evaluate(`[...document.querySelectorAll('[role="tab"]')].find(el => el.textContent.trim() === ${JSON.stringify(tab)})?.click()`);
         await pause(150); await check(`${view}/${tab}/${width}`);
+        if(tab === 'Direct Sales') {
+          await evaluate(`[...document.querySelectorAll('button')].find(el=>el.textContent.trim()==='Edit purchase')?.click()`);await pause(100);await check(`direct-sales/edit/${width}`);
+          if(!await evaluate(`document.body.textContent.includes('Edit direct sale #1')`))failures.push({label:'Direct sale editor missing',width});
+          await evaluate(`[...document.querySelectorAll('button')].find(el=>el.textContent.trim()==='Cancel edit')?.click()`);
+          await evaluate(`[...document.querySelectorAll('button')].find(el=>el.textContent.trim()==='Edit customer')?.click()`);await pause(100);await check(`direct-sales/customer-edit/${width}`);
+          await evaluate(`document.querySelector('.money-dialog button')?.click()`);
+        }
         if(tab === 'Box Allocation') {
           await evaluate(`[...document.querySelectorAll('label')].find(el => el.textContent.includes('Manual routing'))?.querySelector('input')?.click()`);
           await pause(100); await check(`sales/manual-routing/${width}`);
+        }
+        if(view === 'farm' && ['Inventory','Production'].includes(tab)) {
+          const action=tab==='Inventory'?'Add inventory movement':'Add production batch';
+          await evaluate(`[...document.querySelectorAll('.admin-content button')].find(el=>el.textContent.trim()===${JSON.stringify(action)})?.click()`);
+          await pause(150);await check(`farm/${tab}/worker-dialog/${width}`);
+          if(!await evaluate(`document.querySelector('.money-dialog[open]')?.textContent.includes('Work done by')`))failures.push({label:'Missing worker selector',tab,width});
+          await evaluate(`document.querySelector('.money-dialog button')?.click()`);
         }
         // Inventory's own sections use the shared action bar.
         if(tab === 'Inventory') for(const label of ['Transactions', 'Inventory & transaction types']) {
           await evaluate(`[...document.querySelectorAll('.admin-content button')].find(el => el.textContent.trim() === ${JSON.stringify(label)})?.click()`);
           await pause(100); await check(`inventory/${label}/${width}`);
         }
+      }
+      if(view === 'employees') {
+        await evaluate(`[...document.querySelectorAll('button')].find(el=>el.textContent.trim()==='View records')?.click()`);
+        await pause(150);await check(`employees/farm-work/${width}`);
+        if(!await evaluate(`document.body.textContent.includes('Harvest #1')`))failures.push({label:'Missing farm work report',width});
       }
       if(view === 'money') {
         await evaluate(`[...document.querySelectorAll('button')].find(el => el.textContent.trim() === 'Add expense')?.click()`);

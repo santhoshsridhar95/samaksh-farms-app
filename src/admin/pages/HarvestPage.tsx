@@ -1,3 +1,4 @@
+import { WorkAttribution, WorkerName } from "../components/WorkAttribution";
 import { getStoredRoles } from "../../routes/authSession";
 import { MoneySpinner, errorMessage, todayIndia } from "./MoneyPage";
 import "./MoneyPage.css";
@@ -13,6 +14,7 @@ export default function HarvestPage({embedded=false}:{embedded?:boolean}) {
   const Wrapper=embedded?Fragment:AdminLayout;
   const [busy,setBusy]=useState(false),[error,setError]=useState(""),[message,setMessage]=useState("");
   const saving=useRef(false);
+  const [performedByEmployeeId,setPerformedByEmployeeId]=useState("");
   const [batches, setBatches] = useState<any[]>([]);
   const [harvests, setHarvests] = useState<any[]>([]);
   const [harvestDate,setHarvestDate]=useState(todayIndia);
@@ -20,6 +22,7 @@ export default function HarvestPage({embedded=false}:{embedded?:boolean}) {
   const admin=getStoredRoles().includes("SUPER_ADMIN");
   const [batchId, setBatchId] = useState("");
   const [quantity, setQuantity] = useState("");
+  const [numberOfBoxes,setNumberOfBoxes]=useState("");
   const [remarks, setRemarks] = useState("");
 
   useEffect(() => {
@@ -41,12 +44,15 @@ export default function HarvestPage({embedded=false}:{embedded?:boolean}) {
   const saveHarvest = async () => {
     if(saving.current)return;
     if(!harvestDate || !Number.isFinite(Number(quantity)) || Number(quantity)<=0){setError("Enter a harvest date and a quantity greater than zero.");return;}
+    if(numberOfBoxes!=="" && (!Number.isInteger(Number(numberOfBoxes)) || Number(numberOfBoxes)<0 || Number(numberOfBoxes)>2147483647)){setError("Enter a whole number of boxes, zero or more.");return;}
     try {
       saving.current=true;setBusy(true);setError("");setMessage("");
       await api.request({method:editing?"put":"post",url:editing?`/api/harvest/${editing}`:"/api/harvest",data:{
           batchId: batchId ? Number(batchId) : null,
           harvestDate,
           quantity: Number(quantity),
+          numberOfBoxes: numberOfBoxes===""?null:Number(numberOfBoxes),
+          performedByEmployeeId: performedByEmployeeId ? Number(performedByEmployeeId) : null,
           remarks
         }}
       );
@@ -55,8 +61,8 @@ export default function HarvestPage({embedded=false}:{embedded?:boolean}) {
 
       setEditing(null);setHarvestDate(todayIndia());
       setBatchId("");
-      setQuantity("");
-      setRemarks("");
+      setQuantity("");setNumberOfBoxes("");
+      setRemarks("");setPerformedByEmployeeId("");
 
       await loadData();
     } catch (error: any) {
@@ -108,20 +114,20 @@ export default function HarvestPage({embedded=false}:{embedded?:boolean}) {
             />
           </Field>
 
-          <Field label="Remarks">
+          <Field label="Number of boxes (optional)"><input type="number" min="0" max="2147483647" step="1" value={numberOfBoxes} onChange={e=>setNumberOfBoxes(e.target.value)}/></Field><WorkAttribution value={performedByEmployeeId} onChange={setPerformedByEmployeeId}/><Field label="Remarks">
             <input
               value={remarks}
               onChange={(event) => setRemarks(event.target.value)}
             />
           </Field>
 
-          <p className="money-wide">The signed-in user is recorded automatically when a harvest is created.</p>
+          <p className="money-wide">Work is credited to the selected employee; the recorder is retained for audit history.</p>
 
           <button className="admin-button" type="button" onClick={saveHarvest}>
             {busy?<MoneySpinner/>:<Save size={17}/>}
             {busy?"Saving…":editing?"Update Harvest":"Save Harvest"}
           </button>
-          {editing&&<button type="button" className="admin-button admin-button-secondary" onClick={()=>{setEditing(null);setBatchId("");setQuantity("");setRemarks("");setHarvestDate(todayIndia());setError("");}}>Cancel edit</button>}
+          {editing&&<button type="button" className="admin-button admin-button-secondary" onClick={()=>{setEditing(null);setBatchId("");setQuantity("");setNumberOfBoxes("");setRemarks("");setPerformedByEmployeeId("");setHarvestDate(todayIndia());setError("");}}>Cancel edit</button>}
         </fieldset>
       </Panel>
 
@@ -137,7 +143,7 @@ export default function HarvestPage({embedded=false}:{embedded?:boolean}) {
         )}
 
         {harvests.length > 0 && (
-<div style={{overflowX:"auto"}}><table className="money-table"><thead><tr><th>Date</th><th>Batch</th><th>Quantity (kg)</th><th>Recorded by</th><th>Remarks</th><th>Action</th></tr></thead><tbody>{[...harvests].sort((a,b)=>(b.harvestDate||"").localeCompare(a.harvestDate||"")||b.id-a.id).map(harvest=><tr key={harvest.id}><td>{harvest.harvestDate||"—"}</td><td>{harvest.batchCode||"No batch / combined"}</td><td>{harvest.quantity}</td><td>{harvest.createdBy ? `User #${harvest.createdBy}` : "—"}</td><td style={{whiteSpace:"normal"}}>{harvest.remarks||"—"}</td><td>{admin&&<button type="button" disabled={busy} className="admin-button admin-button-secondary" onClick={()=>{setEditing(harvest.id);setBatchId(harvest.batchId?String(harvest.batchId):"");setHarvestDate(harvest.harvestDate||todayIndia());setQuantity(String(harvest.quantity));setRemarks(harvest.remarks||"");setError("");setMessage("");}}>Edit</button>}</td></tr>)}</tbody></table></div>
+<div style={{overflowX:"auto"}}><table className="money-table"><thead><tr><th>Date</th><th>Batch</th><th>Quantity (kg)</th><th>Boxes</th><th>Work done by</th><th>Recorded by</th><th>Remarks</th><th>Action</th></tr></thead><tbody>{[...harvests].sort((a,b)=>(b.harvestDate||"").localeCompare(a.harvestDate||"")||b.id-a.id).map(harvest=><tr key={harvest.id}><td>{harvest.harvestDate||"—"}</td><td>{harvest.batchCode||"No batch / combined"}</td><td>{harvest.quantity}</td><td>{harvest.numberOfBoxes??"—"}</td><td><WorkerName id={harvest.performedByEmployeeId}/></td><td>{harvest.createdBy ? `User #${harvest.createdBy}` : "—"}</td><td style={{whiteSpace:"normal"}}>{harvest.remarks||"—"}</td><td>{admin&&<button type="button" disabled={busy} className="admin-button admin-button-secondary" onClick={()=>{setEditing(harvest.id);setPerformedByEmployeeId(String(harvest.performedByEmployeeId||""));setNumberOfBoxes(harvest.numberOfBoxes==null?"":String(harvest.numberOfBoxes));setBatchId(harvest.batchId?String(harvest.batchId):"");setHarvestDate(harvest.harvestDate||todayIndia());setQuantity(String(harvest.quantity));setRemarks(harvest.remarks||"");setError("");setMessage("");}}>Edit</button>}</td></tr>)}</tbody></table></div>
         )}
       </Panel>
     </Wrapper>
